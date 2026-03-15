@@ -118,7 +118,21 @@
     },
     "newLimit": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "description": "Default quota limit to request when not specified per-request."
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Optional execution defaults that override hard-coded values.",
+      "properties": {
+        "delaySeconds": { "type": "integer", "minimum": 0 },
+        "requestsPerMinute": { "type": "integer", "minimum": 1, "maximum": 120 },
+        "maxRetries": { "type": "integer", "minimum": 0 },
+        "baseRetrySeconds": { "type": "integer", "minimum": 1 },
+        "newLimit": { "type": "integer", "minimum": 1 },
+        "quotaType": { "type": "string", "enum": ["LowPriority", "Dedicated", "Standard", "Spot"] }
+      },
+      "additionalProperties": false
     },
     "defaultRequests": {
       "type": "array",
