@@ -405,6 +405,8 @@ foreach ($name in $functionNames) {
     Invoke-Expression $functionMap[$name]
 }
 
+$script:CachedAzureRegions = $null
+
 function ConvertTo-DiscoveryCollection {
     param([Parameter(Mandatory = $true)]$InputObject)
 
