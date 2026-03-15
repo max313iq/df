@@ -344,6 +344,7 @@ $functionNames = @(
     "Read-RunStateSnapshot",
     "Update-RunStateCounters",
     "Write-RunStateSnapshot",
+    "Convert-ToWritableRunStateEntry",
     "Get-PendingRequestStateItems",
     "ConvertTo-ProxyPoolEntry",
     "Resolve-ProxyPoolEntries",
