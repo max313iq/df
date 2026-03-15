@@ -7,72 +7,72 @@ param(
     [int]$DelaySeconds = 23,
 
     [Parameter(Mandatory = $false)]
-[string]$TicketTemplatePath,
+    [string]$TicketTemplatePath,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactFirstName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactFirstName,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactLastName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactLastName,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredContactMethod,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredContactMethod,
 
-[Parameter(Mandatory = $false)]
-[string]$PrimaryEmailAddress,
+    [Parameter(Mandatory = $false)]
+    [string]$PrimaryEmailAddress,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredTimeZone,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredTimeZone,
 
-[Parameter(Mandatory = $false)]
-[string]$Country,
+    [Parameter(Mandatory = $false)]
+    [string]$Country,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredSupportLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredSupportLanguage,
 
-[Parameter(Mandatory = $false)]
-[string[]]$AdditionalEmailAddresses,
+    [Parameter(Mandatory = $false)]
+    [string[]]$AdditionalEmailAddresses,
 
-[Parameter(Mandatory = $false)]
-[string]$AcceptLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$AcceptLanguage,
 
-[Parameter(Mandatory = $false)]
-[string]$ProblemClassificationId,
+    [Parameter(Mandatory = $false)]
+    [string]$ProblemClassificationId,
 
-[Parameter(Mandatory = $false)]
-[string]$ServiceId,
+    [Parameter(Mandatory = $false)]
+    [string]$ServiceId,
 
-[Parameter(Mandatory = $false)]
-[string]$Severity,
+    [Parameter(Mandatory = $false)]
+    [string]$Severity,
 
-[Parameter(Mandatory = $false)]
-[string]$Title,
+    [Parameter(Mandatory = $false)]
+    [string]$Title,
 
-[Parameter(Mandatory = $false)]
-[string]$DescriptionTemplate,
+    [Parameter(Mandatory = $false)]
+    [string]$DescriptionTemplate,
 
-[Parameter(Mandatory = $false)]
-[string]$AdvancedDiagnosticConsent,
+    [Parameter(Mandatory = $false)]
+    [string]$AdvancedDiagnosticConsent,
 
-[Parameter(Mandatory = $false)]
-[Nullable[bool]]$Require24X7Response,
+    [Parameter(Mandatory = $false)]
+    [Nullable[bool]]$Require24X7Response,
 
-[Parameter(Mandatory = $false)]
-[string]$SupportPlanId,
+    [Parameter(Mandatory = $false)]
+    [string]$SupportPlanId,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestVersion,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestVersion,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestSubType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestSubType,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaRequestType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaRequestType,
 
-[Parameter(Mandatory = $false)]
-[Nullable[int]]$NewLimit,
+    [Parameter(Mandatory = $false)]
+    [Nullable[int]]$NewLimit,
 
-[Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false)]
     [switch]$DryRun,
 
     [Parameter(Mandatory = $false)]
@@ -1210,13 +1210,13 @@ function Invoke-AzDeviceCodeLogin {
     Write-Host "Running Azure device-code login..."
     Write-Host "Azure CLI will print a login URL and one-time code below."
 
-    $args = @("login", "--use-device-code")
+    $loginArgs = @("login", "--use-device-code")
     if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-        $args += @("--tenant", $TenantId)
+        $loginArgs += @("--tenant", $TenantId)
         Write-Host "Tenant-scoped login requested for tenant: $TenantId"
     }
 
-    $output = Invoke-AzCommand -Args $args
+    $output = Invoke-AzCommand -Args $loginArgs
     if ($output) {
         foreach ($line in ($output -split "`r?`n")) {
             if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -1734,9 +1734,9 @@ function Invoke-AzureSupportBatchQuotaRun {
     }
 
     if ($MaxRequests -lt 0) { throw "MaxRequests cannot be negative." }
-if ($MaxRetries -lt 0) { throw "MaxRetries cannot be negative." }
-if ($BaseRetrySeconds -lt 1) { throw "BaseRetrySeconds must be >= 1." }
-if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were provided." }
+    if ($MaxRetries -lt 0) { throw "MaxRetries cannot be negative." }
+    if ($BaseRetrySeconds -lt 1) { throw "BaseRetrySeconds must be >= 1." }
+    if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were provided." }
 
     $effectiveContactDetails = $null
     $effectiveProblemClassificationId = $null
@@ -1760,12 +1760,12 @@ if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were pr
 
     $normalizedRequests = @(Expand-AccountRegionRequests -Requests $Requests)
     if (-not $normalizedRequests -or $normalizedRequests.Count -eq 0) {
-    throw "No valid account-region mappings were provided."
-}
+        throw "No valid account-region mappings were provided."
+    }
 
     $validatedRequests = New-Object System.Collections.Generic.List[object]
     $requestIndex = 0
-foreach ($request in $normalizedRequests) {
+    foreach ($request in $normalizedRequests) {
         $requestIndex++
 
         $subscription = Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')
@@ -1870,7 +1870,7 @@ foreach ($request in $normalizedRequests) {
                     proxyUrl = $null
                     ticket = $null
                     attempts = 0
-                retryCount = 0
+                    retryCount = 0
                     durationSeconds = $null
                     skipReason = $null
                     error = $null
@@ -2476,12 +2476,20 @@ foreach ($request in $normalizedRequests) {
     }
     Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
 
-    $results = New-Object System.Collections.Generic.List[object]
+    # Backfill results for any state entries that were skipped (resume/cancel) but have
+    # completed status from a previous run, so the final result set is always complete.
+    $resultKeys = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($r in $results) {
+        [void]$resultKeys.Add("$($r.subscription)|$($r.account)|$($r.region)")
+    }
     foreach ($entry in @($runState.requestQueue | Sort-Object index)) {
         if (-not $entry.status -or $entry.status -eq 'Pending' -or $entry.status -eq 'Running') {
             continue
         }
-
+        $key = "$($entry.subscription)|$($entry.account)|$($entry.region)"
+        if ($resultKeys.Contains($key)) {
+            continue
+        }
         $results.Add([pscustomobject]@{
             requestIndex = $entry.index
             account = $entry.account
@@ -2955,17 +2963,17 @@ if ($MyInvocation.InvocationName -ne '.') {
         })
     }
 
-$preflight = Test-RunPreflight -Requests $preparedRequests -Token $Token -TryAzCliToken $TryAzCliToken -DryRun:$DryRun -DelaySeconds $DelaySeconds -RequestsPerMinute $RequestsPerMinute -ProxyUrl $ProxyUrl -ProxyPool $ProxyPool -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials -ProxyCredential $ProxyCredential
-if ($preflight -is [System.Management.Automation.PSCustomObject]) {
-    if (-not $preflight.IsValid) {
-        throw (($preflight.Errors) -join "; ")
+    $preflight = Test-RunPreflight -Requests $preparedRequests -Token $Token -TryAzCliToken $TryAzCliToken -DryRun:$DryRun -DelaySeconds $DelaySeconds -RequestsPerMinute $RequestsPerMinute -ProxyUrl $ProxyUrl -ProxyPool $ProxyPool -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials -ProxyCredential $ProxyCredential
+    if ($preflight -is [System.Management.Automation.PSCustomObject]) {
+        if (-not $preflight.IsValid) {
+            throw (($preflight.Errors) -join "; ")
+        }
     }
-}
-else {
-    $preflightIssues = @($preflight)
-    if ($preflightIssues.Count -gt 0) {
-        throw ($preflightIssues -join "; ")
-    }
+    else {
+        $preflightIssues = @($preflight)
+        if ($preflightIssues.Count -gt 0) {
+            throw ($preflightIssues -join "; ")
+        }
     }
 
     $scriptStart = Get-Date

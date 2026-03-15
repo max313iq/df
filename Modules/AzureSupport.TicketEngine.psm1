@@ -11,6 +11,13 @@ else {
 }
 
 function Get-ObjectMemberValue {
+    <#
+    .SYNOPSIS
+        Safely reads a named property from a PSObject or IDictionary.
+    .DESCRIPTION
+        Returns the value of $Name on $Object, or $null when the property
+        does not exist.  Works with PSCustomObject, hashtable, and ordered-dictionary types.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]$Object,
@@ -263,6 +270,12 @@ function Get-TicketTemplatePath {
 }
 
 function Get-TicketTemplate {
+    <#
+    .SYNOPSIS
+        Loads and parses a ticket template JSON file.
+    .PARAMETER Path
+        Absolute or relative path to the ticket template JSON file.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -283,6 +296,13 @@ function Get-TicketTemplate {
 }
 
 function Merge-TemplateDefaults {
+    <#
+    .SYNOPSIS
+        Extracts and flattens default values from a ticket template into a single ordered hashtable.
+    .DESCRIPTION
+        Combines the 'defaults' and 'contactDetails' sections of a loaded ticket template
+        into a flat key/value dictionary suitable for populating GUI controls or CLI defaults.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Template)
 
@@ -439,6 +459,14 @@ function Split-DiscoveryFilterList {
 }
 
 function Get-AzureSupportDiscoveryRows {
+    <#
+    .SYNOPSIS
+        Discovers Azure Batch accounts and returns grid-ready row objects.
+    .DESCRIPTION
+        Uses Azure CLI to enumerate subscriptions and Batch accounts,
+        applying optional filters for subscription, tenant, region, and account name.
+        Returns an array of discovery row objects sorted by subscription/account/region.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)][string]$SubscriptionFilter,
@@ -572,6 +600,13 @@ function Get-AzureSupportDiscoveryRows {
 }
 
 function Test-DiscoveryRegionValue {
+    <#
+    .SYNOPSIS
+        Validates a region string against a list of discovered regions.
+    .DESCRIPTION
+        Returns a result object with the normalized region, IsValid flag,
+        and any errors/warnings.  Defaults blank regions to $DefaultRegion.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)][string]$Region,
@@ -603,6 +638,13 @@ function Test-DiscoveryRegionValue {
 }
 
 function New-DiscoveryGridRow {
+    <#
+    .SYNOPSIS
+        Creates a discovery grid row object for the GUI DataGrid or CLI output.
+    .DESCRIPTION
+        Normalizes inputs (region defaults, discovered regions) and returns a
+        consistent PSCustomObject representing one Batch account/region discovery row.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Id,
@@ -633,7 +675,111 @@ function New-DiscoveryGridRow {
     }
 }
 
+function Resolve-EffectiveContactDetails {
+    <#
+    .SYNOPSIS
+        Builds the contactDetails hashtable by merging explicit overrides with template defaults.
+    .DESCRIPTION
+        Resolves each contact field from BoundParameters (CLI/GUI overrides) first,
+        falling back to the ticket template contactDetails section.  This eliminates
+        duplicated contact-resolution logic between the batch-run function and the
+        standalone script entry point.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$TemplateContact,
+        [Parameter(Mandatory = $false)][hashtable]$BoundParameters = @{},
+        [Parameter(Mandatory = $false)][string]$ContactFirstName,
+        [Parameter(Mandatory = $false)][string]$ContactLastName,
+        [Parameter(Mandatory = $false)][string]$PreferredContactMethod,
+        [Parameter(Mandatory = $false)][string]$PrimaryEmailAddress,
+        [Parameter(Mandatory = $false)][string]$PreferredTimeZone,
+        [Parameter(Mandatory = $false)][string]$Country,
+        [Parameter(Mandatory = $false)][string]$PreferredSupportLanguage,
+        [Parameter(Mandatory = $false)][string[]]$AdditionalEmailAddresses
+    )
+
+    $additionalEmailSource = if ($BoundParameters.ContainsKey("AdditionalEmailAddresses")) {
+        @($AdditionalEmailAddresses)
+    }
+    else {
+        @($TemplateContact.additionalEmailAddresses)
+    }
+    $resolvedEmails = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($email in @($additionalEmailSource)) {
+        if ($null -eq $email) { continue }
+        $text = [string]$email
+        if ([string]::IsNullOrWhiteSpace($text)) { continue }
+        $null = $resolvedEmails.Add($text.Trim())
+    }
+
+    return @{
+        firstName                = if ($BoundParameters.ContainsKey("ContactFirstName")) { $ContactFirstName } else { [string]$TemplateContact.firstName }
+        lastName                 = if ($BoundParameters.ContainsKey("ContactLastName")) { $ContactLastName } else { [string]$TemplateContact.lastName }
+        preferredContactMethod   = if ($BoundParameters.ContainsKey("PreferredContactMethod")) { $PreferredContactMethod } else { [string]$TemplateContact.preferredContactMethod }
+        primaryEmailAddress      = if ($BoundParameters.ContainsKey("PrimaryEmailAddress")) { $PrimaryEmailAddress } else { [string]$TemplateContact.primaryEmailAddress }
+        preferredTimeZone        = if ($BoundParameters.ContainsKey("PreferredTimeZone")) { $PreferredTimeZone } else { [string]$TemplateContact.preferredTimeZone }
+        country                  = if ($BoundParameters.ContainsKey("Country")) { $Country } else { [string]$TemplateContact.country }
+        preferredSupportLanguage = if ($BoundParameters.ContainsKey("PreferredSupportLanguage")) { $PreferredSupportLanguage } else { [string]$TemplateContact.preferredSupportLanguage }
+        additionalEmailAddresses = $resolvedEmails.ToArray()
+    }
+}
+
+function Resolve-EffectiveTemplateValues {
+    <#
+    .SYNOPSIS
+        Resolves effective ticket field values by merging explicit overrides with template defaults.
+    .DESCRIPTION
+        For each ticket-level field (title, severity, problemClassificationId, etc.),
+        returns the BoundParameter value if supplied, otherwise the template value.
+        Consolidates the duplicated template-override pattern in the engine.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$TicketTemplate,
+        [Parameter(Mandatory = $false)][hashtable]$BoundParameters = @{},
+        [Parameter(Mandatory = $false)][string]$AcceptLanguage,
+        [Parameter(Mandatory = $false)][string]$ProblemClassificationId,
+        [Parameter(Mandatory = $false)][string]$ServiceId,
+        [Parameter(Mandatory = $false)][string]$Severity,
+        [Parameter(Mandatory = $false)][string]$Title,
+        [Parameter(Mandatory = $false)][string]$DescriptionTemplate,
+        [Parameter(Mandatory = $false)][string]$AdvancedDiagnosticConsent,
+        [Parameter(Mandatory = $false)][Nullable[bool]]$Require24X7Response,
+        [Parameter(Mandatory = $false)][string]$SupportPlanId,
+        [Parameter(Mandatory = $false)][string]$QuotaChangeRequestVersion,
+        [Parameter(Mandatory = $false)][string]$QuotaChangeRequestSubType,
+        [Parameter(Mandatory = $false)][string]$QuotaRequestType,
+        [Parameter(Mandatory = $false)][Nullable[int]]$NewLimit
+    )
+
+    return @{
+        AcceptLanguage             = if ($BoundParameters.ContainsKey("AcceptLanguage")) { $AcceptLanguage } else { [string]$TicketTemplate.acceptLanguage }
+        ProblemClassificationId    = if ($BoundParameters.ContainsKey("ProblemClassificationId")) { $ProblemClassificationId } else { [string]$TicketTemplate.problemClassificationId }
+        ServiceId                  = if ($BoundParameters.ContainsKey("ServiceId")) { $ServiceId } else { [string]$TicketTemplate.serviceId }
+        Severity                   = if ($BoundParameters.ContainsKey("Severity")) { $Severity } else { [string]$TicketTemplate.severity }
+        Title                      = if ($BoundParameters.ContainsKey("Title")) { $Title } else { [string]$TicketTemplate.title }
+        DescriptionTemplate        = if ($BoundParameters.ContainsKey("DescriptionTemplate")) { $DescriptionTemplate } else { [string]$TicketTemplate.descriptionTemplate }
+        AdvancedDiagnosticConsent  = if ($BoundParameters.ContainsKey("AdvancedDiagnosticConsent")) { $AdvancedDiagnosticConsent } else { [string]$TicketTemplate.advancedDiagnosticConsent }
+        Require24X7Response        = if ($BoundParameters.ContainsKey("Require24X7Response")) { [bool]$Require24X7Response } else { [bool]$TicketTemplate.require24X7Response }
+        SupportPlanId              = if ($BoundParameters.ContainsKey("SupportPlanId")) { $SupportPlanId } else { [string]$TicketTemplate.supportPlanId }
+        QuotaChangeRequestVersion  = if ($BoundParameters.ContainsKey("QuotaChangeRequestVersion")) { $QuotaChangeRequestVersion } else { [string]$TicketTemplate.quotaChangeRequestVersion }
+        QuotaChangeRequestSubType  = if ($BoundParameters.ContainsKey("QuotaChangeRequestSubType")) { $QuotaChangeRequestSubType } else { [string]$TicketTemplate.quotaChangeRequestSubType }
+        QuotaRequestType           = if ($BoundParameters.ContainsKey("QuotaRequestType")) { $QuotaRequestType } else { [string]$TicketTemplate.quotaRequestType }
+        NewLimit                   = if ($BoundParameters.ContainsKey("NewLimit") -and $null -ne $NewLimit) { [int]$NewLimit } else { [int]$TicketTemplate.newLimit }
+    }
+}
+
 function Convert-ProfileToUnifiedSchema {
+    <#
+    .SYNOPSIS
+        Migrates a GUI/CLI run profile to the unified v1 schema.
+    .DESCRIPTION
+        Accepts either a flat (legacy) or structured (v1) profile object and
+        normalizes it into the unified profileVersion=1 schema.  Returns a
+        result with .Profile (normalized) and .Migrated ($true if the input
+        was a legacy format that was upgraded).
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]$Profile,
@@ -808,5 +954,7 @@ Export-ModuleMember -Function @(
     "ConvertTo-DiscoveryCollection",
     "New-DiscoveryGridRow",
     "Test-DiscoveryRegionValue",
-    "Convert-ProfileToUnifiedSchema"
+    "Convert-ProfileToUnifiedSchema",
+    "Resolve-EffectiveContactDetails",
+    "Resolve-EffectiveTemplateValues"
 )

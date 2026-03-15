@@ -109,10 +109,45 @@ $script:Defaults = Merge-TemplateDefaults -Template $script:Template
     Width="1280"
     Height="900"
     WindowStartupLocation="CenterScreen"
-    FontFamily="Calibri">
+    FontFamily="Segoe UI"
+    Background="#FFF5F7FA">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#FF0078D4" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="#FF005A9E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#FF106EBE" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#FF005A9E" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#FFB0B0B0" />
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#FF999999" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
     <Grid Margin="12">
@@ -146,6 +181,7 @@ $script:Defaults = Merge-TemplateDefaults -Template $script:Template
                     Grid.ColumnSpan="3"
                     FontSize="18"
                     FontWeight="Bold"
+                    Foreground="#FF0078D4"
                     Margin="0 0 0 8">
                     Azure Quota Ticket Launcher
                 </TextBlock>
@@ -190,11 +226,13 @@ $script:Defaults = Merge-TemplateDefaults -Template $script:Template
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock
                         Grid.Row="0"
                         FontSize="14"
                         FontWeight="SemiBold"
+                        Foreground="#FF0078D4"
                         Margin="0 0 0 8"
                         Text="Discovered requests"/>
                     <DataGrid
@@ -220,6 +258,7 @@ $script:Defaults = Merge-TemplateDefaults -Template $script:Template
                         x:Name="TxtStatusHint"
                         Grid.Row="2"
                         Foreground="#4F5563"
+                        FontSize="11"
                         Text="Use discovery filters to scope discovery, then select desired rows before execution."
                         Margin="0 6 0 0"/>
                 </Grid>
@@ -235,7 +274,7 @@ $script:Defaults = Merge-TemplateDefaults -Template $script:Template
                 Background="#FFFDFEFF">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Margin="0 0 0 10" Text="Execution settings"/>
+                        <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="#FF0078D4" Margin="0 0 0 10" Text="Execution settings"/>
                         <TextBlock FontWeight="SemiBold" Text="Bearer Token"/>
                         <PasswordBox x:Name="TxtToken" Margin="0 2 0 6"/>
                         <CheckBox x:Name="ChkTryAzCliToken" Content="Use Azure CLI token when token is empty" IsChecked="True" Margin="0 0 0 8"/>
