@@ -2225,7 +2225,7 @@ function Invoke-AzureSupportBatchQuotaRun {
                 attempts = $attemptTimeline
                 throttleWaitSeconds = 0
             }
-            $attemptTimelineSnapshot = @($attemptTimeline)
+            $attemptTimelineSnapshot = $attemptTimeline
             try {
                 $stateEntry.timeline = $timelineSnapshot
                 $stateEntry.timelineJson = $null
@@ -2454,7 +2454,7 @@ function Invoke-AzureSupportBatchQuotaRun {
         $stateEntry.timelineEndUtc = $requestEnd.ToUniversalTime().ToString('o')
         $stateEntry.interRequestDelaySeconds = $effectiveDelaySeconds
         $stateEntry.throttleWaitSeconds = [math]::Round($throttleWaitSeconds, 2)
-        $attemptTimelineEntries = @($attemptTimeline)
+        $attemptTimelineEntries = $attemptTimeline
         $timelineSnapshot = [pscustomobject]@{
             startUtc = $requestStartUtc
             endUtc = $requestEnd.ToUniversalTime().ToString('o')
