@@ -152,6 +152,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Script-scope wrappers delegate to the module so standalone execution can call
+# shared functions without the fully-qualified module prefix.
+
 function Convert-ToBoolValue {
     [CmdletBinding()]
     param(
@@ -159,7 +162,6 @@ function Convert-ToBoolValue {
         [Parameter(Mandatory = $false)][bool]$Default = $false,
         [Parameter(Mandatory = $false)][string]$Name = "value"
     )
-
     return AzureSupport.TicketEngine\Convert-ToBoolValue -Value $Value -Default $Default -Name $Name
 }
 
@@ -347,29 +349,18 @@ else {
     )
 }
 
-function Get-DefaultStorageDirectory {
-    return AzureSupport.TicketEngine\Get-DefaultStorageDirectory
-}
-
+# Module delegation wrappers for standalone script scope
+function Get-DefaultStorageDirectory { return AzureSupport.TicketEngine\Get-DefaultStorageDirectory }
 function Resolve-DefaultedPath {
-    param(
-        [Parameter(Mandatory = $false)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$DefaultFileName
-    )
-
+    param([Parameter(Mandatory = $false)][string]$Path, [Parameter(Mandatory = $true)][string]$DefaultFileName)
     return AzureSupport.TicketEngine\Resolve-DefaultedPath -Path $Path -DefaultFileName $DefaultFileName
 }
-
 function Get-RunProfile {
     param([Parameter(Mandatory = $true)][string]$Path)
     return AzureSupport.TicketEngine\Get-RunProfile -Path $Path
 }
-
 function Save-RunProfile {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)]$Profile
-    )
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)]$Profile)
     AzureSupport.TicketEngine\Save-RunProfile -Path $Path -Profile $Profile
 }
 
@@ -987,6 +978,13 @@ function Resolve-ProxyPoolEntries {
 }
 
 function Test-RunPreflight {
+    <#
+    .SYNOPSIS
+        Validates run parameters before execution, delegating common checks to the shared preflight.
+    .DESCRIPTION
+        Combines the shared Test-AzureSupportPreFlight validation with proxy-pool-specific checks.
+        Returns an array of issue strings (empty array = valid).
+    #>
     param(
         [Parameter(Mandatory = $true)][array]$Requests,
         [Parameter(Mandatory = $false)][string]$Token,
@@ -1002,34 +1000,38 @@ function Test-RunPreflight {
 
     $issues = New-Object System.Collections.Generic.List[string]
 
-    if (-not $Requests -or $Requests.Count -eq 0) {
-        $issues.Add("No quota requests were provided.")
+    # Delegate common validation to the shared preflight function
+    $sharedResult = Test-AzureSupportPreFlight `
+        -Requests $Requests `
+        -Token $Token `
+        -TryAzCliToken $TryAzCliToken `
+        -DelaySeconds $DelaySeconds `
+        -MaxRetries 0 `
+        -BaseRetrySeconds 1 `
+        -RequestsPerMinute $RequestsPerMinute `
+        -ProxyUrl $ProxyUrl `
+        -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+    foreach ($err in @($sharedResult.Errors)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$err)) { $issues.Add([string]$err) }
     }
 
-    if (-not $DryRun -and [string]::IsNullOrWhiteSpace($Token) -and -not $TryAzCliToken) {
-        $issues.Add("Token is required. Set -Token, set AZURE_BEARER_TOKEN, or enable -TryAzCliToken.")
-    }
-
-    if ($DelaySeconds -lt 0) {
-        $issues.Add("DelaySeconds must be 0 or greater.")
+    # Dry-run can skip token requirement
+    if ($DryRun -and $issues.Count -gt 0) {
+        $tokenErrors = @($issues | Where-Object { $_ -match '(?i)token' })
+        if ($tokenErrors.Count -gt 0 -and $tokenErrors.Count -eq $issues.Count) {
+            $issues.Clear()
+        }
     }
 
     if ($RequestsPerMinute -lt 1 -or $RequestsPerMinute -gt 120) {
         $issues.Add("RequestsPerMinute must be between 1 and 120.")
     }
 
-    if ($ProxyUseDefaultCredentials -and $ProxyCredential) {
-        $issues.Add("Set either -ProxyUseDefaultCredentials or -ProxyCredential, not both.")
-    }
-
     if ($ProxyCredential -and [string]::IsNullOrWhiteSpace($ProxyUrl)) {
         $issues.Add("ProxyCredential requires ProxyUrl.")
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($ProxyUrl) -and -not $ProxyUrl.StartsWith("http", [System.StringComparison]::OrdinalIgnoreCase)) {
-        $issues.Add("ProxyUrl should be a full URL such as https://proxy:port.")
-    }
-
+    # Proxy pool validation (beyond what the shared preflight checks)
     $resolvedProxyPool = @()
     try {
         $resolvedProxyPool = @(Resolve-ProxyPoolEntries -ProxyUrl $ProxyUrl -ProxyPool $ProxyPool)
@@ -1044,18 +1046,6 @@ function Test-RunPreflight {
         }
         if ($ProxyCredential) {
             $issues.Add("ProxyCredential cannot be used together with ProxyPool.")
-        }
-    }
-
-    if ($Requests -and $Requests.Count -gt 0) {
-        $invalidLimits = @($Requests | Where-Object { -not $_.PSObject.Properties['limit'] -or $null -eq $_.limit -or [int]$_.limit -lt 1 })
-        if ($invalidLimits.Count -gt 0) {
-            $issues.Add("All requests must include a positive integer limit.")
-        }
-
-        $dupes = @($Requests | Group-Object -Property { "$($_.sub)|$($_.account)|$($_.region)" } | Where-Object { $_.Count -gt 1 })
-        if ($dupes.Count -gt 0) {
-            $issues.Add("Duplicate request combos detected for subscription/account/region.")
         }
     }
 
@@ -2550,6 +2540,14 @@ function Invoke-AzureSupportBatchQuotaRun {
 }
 
 function Invoke-AzureSupportBatchQuotaRunQueued {
+    <#
+    .SYNOPSIS
+        Executes quota requests one at a time with per-request state persistence and cancellation support.
+    .DESCRIPTION
+        Wraps Invoke-AzureSupportBatchQuotaRun, processing each request individually so that
+        run state is written after every request.  Supports resume, retry-failed, and cancel-signal.
+        All ticket/template parameters are explicit to avoid coupling to script-level variables.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][array]$Requests,
@@ -2571,7 +2569,33 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
         [Parameter(Mandatory = $false)][string]$RunStatePath,
         [Parameter(Mandatory = $false)][switch]$ResumeFromState,
         [Parameter(Mandatory = $false)][switch]$RetryFailedRequests,
-        [Parameter(Mandatory = $false)][string]$RunProfilePath
+        [Parameter(Mandatory = $false)][string]$RunProfilePath,
+
+        # Ticket template parameters (previously relied on script-level variables)
+        [Parameter(Mandatory = $false)][string]$TicketTemplatePath,
+        [Parameter(Mandatory = $false)][string]$ContactFirstName,
+        [Parameter(Mandatory = $false)][string]$ContactLastName,
+        [Parameter(Mandatory = $false)][string]$PreferredContactMethod,
+        [Parameter(Mandatory = $false)][string]$PrimaryEmailAddress,
+        [Parameter(Mandatory = $false)][string]$PreferredTimeZone,
+        [Parameter(Mandatory = $false)][string]$Country,
+        [Parameter(Mandatory = $false)][string]$PreferredSupportLanguage,
+        [Parameter(Mandatory = $false)][string[]]$AdditionalEmailAddresses,
+        [Parameter(Mandatory = $false)][string]$AcceptLanguage,
+        [Parameter(Mandatory = $false)][string]$ProblemClassificationId,
+        [Parameter(Mandatory = $false)][string]$ServiceId,
+        [Parameter(Mandatory = $false)][string]$Severity,
+        [Parameter(Mandatory = $false)][string]$Title,
+        [Parameter(Mandatory = $false)][string]$DescriptionTemplate,
+        [Parameter(Mandatory = $false)][string]$AdvancedDiagnosticConsent,
+        [Parameter(Mandatory = $false)][Nullable[bool]]$Require24X7Response,
+        [Parameter(Mandatory = $false)][string]$SupportPlanId,
+        [Parameter(Mandatory = $false)][string]$QuotaChangeRequestVersion,
+        [Parameter(Mandatory = $false)][string]$QuotaChangeRequestSubType,
+        [Parameter(Mandatory = $false)][string]$QuotaRequestType,
+        [Parameter(Mandatory = $false)][Nullable[int]]$NewLimit,
+        [Parameter(Mandatory = $false)][string]$ResultJsonPath,
+        [Parameter(Mandatory = $false)][string]$ResultCsvPath
     )
 
     if (-not $Requests -or $Requests.Count -eq 0) {

@@ -675,6 +675,81 @@ function New-DiscoveryGridRow {
     }
 }
 
+function ConvertTo-ValidatedRequestList {
+    <#
+    .SYNOPSIS
+        Expands and validates a raw request array into a normalized list of request objects.
+    .DESCRIPTION
+        Takes raw requests (from template, discovery, or GUI), expands multi-region entries,
+        resolves field names, validates required fields, and returns a list of validated
+        request objects ready for the engine.  Throws on invalid requests.
+    .PARAMETER Requests
+        Raw request objects with sub/account/region/limit/quotaType fields.
+    .PARAMETER DefaultNewLimit
+        Fallback limit when a request does not specify one.
+    .PARAMETER DefaultQuotaType
+        Fallback quota type when a request does not specify one.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Requests,
+        [Parameter(Mandatory = $false)][int]$DefaultNewLimit = 680,
+        [Parameter(Mandatory = $false)][string]$DefaultQuotaType = 'LowPriority'
+    )
+
+    $normalizedRequests = @(Expand-AccountRegionRequests -Requests $Requests)
+    if (-not $normalizedRequests -or $normalizedRequests.Count -eq 0) {
+        throw "No valid account-region mappings were provided."
+    }
+
+    $validated = New-Object System.Collections.Generic.List[object]
+    $requestIndex = 0
+    foreach ($request in $normalizedRequests) {
+        $requestIndex++
+
+        $subscription = Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')
+        $account = Resolve-RequestFieldValue -Request $request -FieldNames @('account', 'accountName', 'AccountName', 'name')
+        $region = Resolve-RequestFieldValue -Request $request -FieldNames @('region', 'location')
+
+        if ([string]::IsNullOrWhiteSpace($subscription)) {
+            throw "Request #$requestIndex is missing required subscription (sub/subscription/subscriptionId)."
+        }
+        if ([string]::IsNullOrWhiteSpace($account)) {
+            throw "Request #$requestIndex is missing required account (account/accountName/name)."
+        }
+        if ([string]::IsNullOrWhiteSpace($region)) {
+            $region = "eastus"
+        }
+
+        $limit = $DefaultNewLimit
+        $limitRaw = Resolve-RequestFieldValue -Request $request -FieldNames @('newLimit', 'NewLimit', 'limit')
+        if ($null -ne $limitRaw) {
+            $limitParsed = 0
+            if (-not [int]::TryParse([string]$limitRaw, [ref]$limitParsed) -or $limitParsed -lt 0) {
+                throw "Request #$requestIndex has an invalid newLimit '$limitRaw'."
+            }
+            $limit = $limitParsed
+        }
+
+        $quotaType = Resolve-RequestFieldValue -Request $request -FieldNames @('quotaType', 'type', 'Type')
+        if ([string]::IsNullOrWhiteSpace($quotaType)) {
+            $quotaType = $DefaultQuotaType
+        }
+
+        $validated.Add([pscustomobject]@{
+            Index     = $requestIndex
+            sub       = $subscription.Trim()
+            account   = $account.Trim()
+            region    = $region.Trim()
+            limit     = $limit
+            quotaType = $quotaType
+            payload   = $request
+        })
+    }
+
+    return $validated
+}
+
 function Resolve-EffectiveContactDetails {
     <#
     .SYNOPSIS
@@ -956,5 +1031,6 @@ Export-ModuleMember -Function @(
     "Test-DiscoveryRegionValue",
     "Convert-ProfileToUnifiedSchema",
     "Resolve-EffectiveContactDetails",
-    "Resolve-EffectiveTemplateValues"
+    "Resolve-EffectiveTemplateValues",
+    "ConvertTo-ValidatedRequestList"
 )
