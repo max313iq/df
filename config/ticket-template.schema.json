@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Azure Support Ticket Template",
+  "type": "object",
+  "required": [
+    "contactDetails",
+    "acceptLanguage",
+    "problemClassificationId",
+    "serviceId",
+    "severity",
+    "title",
+    "descriptionTemplate",
+    "advancedDiagnosticConsent",
+    "require24X7Response",
+    "supportPlanId",
+    "quotaChangeRequestVersion",
+    "quotaChangeRequestSubType",
+    "quotaRequestType"
+  ],
+  "properties": {
+    "contactDetails": {
+      "type": "object",
+      "required": [
+        "firstName",
+        "lastName",
+        "preferredContactMethod",
+        "primaryEmailAddress",
+        "preferredTimeZone",
+        "country",
+        "preferredSupportLanguage",
+        "additionalEmailAddresses"
+      ],
+      "properties": {
+        "firstName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lastName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preferredContactMethod": {
+          "type": "string",
+          "enum": ["email", "phone", "chat"]
+        },
+        "primaryEmailAddress": {
+          "type": "string",
+          "format": "email"
+        },
+        "preferredTimeZone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "country": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preferredSupportLanguage": {
+          "type": "string",
+          "minLength": 2
+        },
+        "additionalEmailAddresses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "acceptLanguage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "problemClassificationId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "serviceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "descriptionTemplate": {
+      "type": "string",
+      "minLength": 1
+    },
+    "advancedDiagnosticConsent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "require24X7Response": {
+      "type": "boolean"
+    },
+    "supportPlanId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quotaChangeRequestVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quotaChangeRequestSubType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quotaRequestType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "newLimit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "defaultRequests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sub", "account", "region"],
+        "properties": {
+          "sub": { "type": "string", "minLength": 1 },
+          "account": { "type": "string", "minLength": 1 },
+          "region": { "type": "string", "minLength": 1 },
+          "quotaType": { "type": "string", "minLength": 1 },
+          "limit": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

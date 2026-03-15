@@ -1,0 +1,33 @@
+﻿{
+    "profileVersion":  1,
+    "createdAt":  "2026-03-15T16:07:02.8594909+03:00",
+    "tokenSource":  "Token",
+    "runSettings":  {
+                        "RequestsPerMinute":  120,
+                        "StopOnFirstFailure":  false,
+                        "DelaySeconds":  0,
+                        "MaxRequests":  0,
+                        "UseDeviceCodeLogin":  false,
+                        "MaxRetries":  6,
+                        "RotateFingerprint":  true,
+                        "TryAzCliToken":  true,
+                        "BaseRetrySeconds":  25
+                    },
+    "execution":  {
+                      "RetryFailedRequests":  false,
+                      "CancelSignalPath":  "",
+                      "DryRun":  true,
+                      "ResumeFromState":  false
+                  },
+    "proxy":  {
+                  "UseDefaultCredentials":  false,
+                  "Url":  ""
+              },
+    "resume":  {
+                   "RunStatePath":  "C:\\Users\\m4x\\Desktop\\New folder\\azure-support-ticket-run-state.json"
+               },
+    "defaults":  {
+                     "Region":  "eastus",
+                     "QuotaType":  "LowPriority"
+                 }
+}

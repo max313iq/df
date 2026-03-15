@@ -1,0 +1,91 @@
+﻿{
+    "profileVersion":  1,
+    "createdAt":  "2026-03-15T18:45:06.2941307+03:00",
+    "tokenSource":  "AzureCli",
+    "runSettings":  {
+                        "RequestsPerMinute":  2,
+                        "StopOnFirstFailure":  false,
+                        "DelaySeconds":  23,
+                        "MaxRequests":  0,
+                        "UseDeviceCodeLogin":  false,
+                        "MaxRetries":  6,
+                        "RotateFingerprint":  true,
+                        "TryAzCliToken":  true,
+                        "BaseRetrySeconds":  25
+                    },
+    "execution":  {
+                      "RetryFailedRequests":  false,
+                      "CancelSignalPath":  "",
+                      "DryRun":  false,
+                      "ResumeFromState":  false
+                  },
+    "proxy":  {
+                  "UseDefaultCredentials":  false,
+                  "Url":  ""
+              },
+    "resume":  {
+                   "RunStatePath":  "C:\\Users\\m4x\\Desktop\\New folder\\run-state.json"
+               },
+    "defaults":  {
+                     "Region":  "eastus",
+                     "QuotaType":  "LowPriority"
+                 },
+    "ticket":  {
+                   "TicketTemplatePath":  "C:\\Users\\m4x\\Desktop\\New folder\\config\\default-ticket-template.json",
+                   "ContactLastName":  "Velazquez Gomez",
+                   "NewLimit":  680,
+                   "ContactEmail":  "pedrovelazquez@misionquerendarooutlook.onmicro",
+                   "PreferredTimeZone":  "Russian Standard Time",
+                   "ResultJsonPath":  "",
+                   "ResultCsvPath":  "",
+                   "ContactFirstName":  "Pedro Eduardo",
+                   "PreferredSupportLanguage":  "en-us",
+                   "QuotaType":  "LowPriority",
+                   "Title":  "Quota request for Batch"
+               },
+    "ui":  {
+               "SelectedRequestIds":  [
+                                          "7375f09f-c681-43e3-8b80-d2b83eeadd67",
+                                          "f0ef9d9e-e462-4027-846c-18724764a72d",
+                                          "6672133a-ad29-4da3-b75b-109a7d8a3764",
+                                          "78d0ba74-d782-4c4a-979d-16a787b469ab",
+                                          "e7819982-77e8-4f54-9b10-8a68421c601b",
+                                          "d46ca45b-af1e-4f73-8d04-fa255c8d458f",
+                                          "5dd3ac0b-454f-411f-a67f-948dddd354de",
+                                          "c97218f4-ace8-4dd8-b4d3-72e360c95128",
+                                          "a7008115-42dd-4f25-8436-35baf1ce6be5",
+                                          "7f3c70cd-c2f6-4b1d-a302-2eb69187a80f",
+                                          "dc910f5f-faef-4a21-a3dc-210e362ff0b3",
+                                          "6a25f086-97e9-4e35-8639-51cda6c3c874",
+                                          "ef090bc0-3024-4a06-8587-7609cec68d88",
+                                          "642b0cbc-446c-4b68-8d3a-cbe0395beebc",
+                                          "f594bd42-16b0-4a85-a551-c0ffb30714cb",
+                                          "0fa92558-b460-4300-85f8-750553799632",
+                                          "d27e39ad-0794-42b1-9744-6c28e39ac679",
+                                          "8b573abf-a60e-401e-8437-e4fec290f794",
+                                          "e8744e27-7e3b-47ad-917d-54be58e269ee",
+                                          "83ba377e-890d-4b3d-8a01-52d180a838e6",
+                                          "9ffde58f-9f44-40c9-b143-f2284fa6e736",
+                                          "9068aa04-a836-4b14-8102-37d606dadde5",
+                                          "cb0e68b6-275e-4a59-a023-c01cd323c33d",
+                                          "58991d18-251f-4b4d-87b4-513358fb0b34",
+                                          "4dbbee91-3a78-4819-bcac-74f9eb3eeaf0",
+                                          "a74f0852-5d14-4b6c-92b9-38846a748bed",
+                                          "77db6ba6-49f5-44cd-b667-fbabf42aab14",
+                                          "79c9ff57-1726-427c-a184-7392b1407e0d",
+                                          "ae648f86-1a60-4d3d-843c-00666e4d825f",
+                                          "34a243f6-ca37-4995-9e80-b7bd39bd96c1",
+                                          "26a6179f-8fa3-4ccd-a58b-63c9800257a6",
+                                          "c167bda6-8163-490c-8bec-f64ff0b47e27",
+                                          "d5bfacd7-452a-4647-9bee-67d78a52d55c",
+                                          "f5c10b60-14a0-4c9b-abed-d1fa5861ebec",
+                                          "7decfb7e-d011-41fd-90af-c1a41f44aae9",
+                                          "916da517-fa74-417b-a56f-0d533ead6791",
+                                          "229e69fd-749e-4325-9ade-d7efdfa17671",
+                                          "a1eda829-c4be-434f-91fc-63a92a497c91",
+                                          "a9e81f8b-6340-4cfa-9a2b-902df69de5f7",
+                                          "9dd31c68-e60f-4004-9e40-d00d951a6344",
+                                          "bc084312-25ba-4a7e-a012-80983499c145"
+                                      ]
+           }
+}

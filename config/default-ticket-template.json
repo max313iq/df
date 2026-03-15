@@ -1,0 +1,67 @@
+{
+  "acceptLanguage": "en",
+  "contactDetails": {
+    "firstName": "Pedro Eduardo",
+    "lastName": "Velazquez Gomez",
+    "preferredContactMethod": "email",
+    "primaryEmailAddress": "pedrovelazquez@misionquerendarooutlook.onmicro",
+    "preferredTimeZone": "Russian Standard Time",
+    "country": "MEX",
+    "preferredSupportLanguage": "en-us",
+    "additionalEmailAddresses": []
+  },
+  "defaultRequests": [
+    {
+      "sub": "7eabeee6-a6a4-42b0-8c77-92ccc6253c4e",
+      "account": "aiprodeus01",
+      "region": "eastus"
+    },
+    {
+      "sub": "7eabeee6-a6a4-42b0-8c77-92ccc6253c4e",
+      "account": "aiprodscus01",
+      "region": "southcentralus"
+    },
+    {
+      "sub": "7eabeee6-a6a4-42b0-8c77-92ccc6253c4e",
+      "account": "aiprodweu01",
+      "region": "westeurope"
+    },
+    {
+      "sub": "7eabeee6-a6a4-42b0-8c77-92ccc6253c4e",
+      "account": "aiprodwus201",
+      "region": "westus2"
+    },
+    {
+      "sub": "8b6fd537-31d0-4897-b77b-13159df7a605",
+      "account": "neuroaiprod2eastus",
+      "region": "eastus"
+    },
+    {
+      "sub": "8b6fd537-31d0-4897-b77b-13159df7a605",
+      "account": "neuroaiprod2scus",
+      "region": "southcentralus"
+    },
+    {
+      "sub": "8b6fd537-31d0-4897-b77b-13159df7a605",
+      "account": "neuroaiprod2weu",
+      "region": "westeurope"
+    },
+    {
+      "sub": "8b6fd537-31d0-4897-b77b-13159df7a605",
+      "account": "neuroaiprod2wus2",
+      "region": "westus2"
+    }
+  ],
+  "problemClassificationId": "/providers/microsoft.support/services/06bfd9d3-516b-d5c6-5802-169c800dec89/problemclassifications/831b2fb3-4db3-3d32-af35-bbb3d3eaeba2",
+  "serviceId": "/providers/microsoft.support/services/06bfd9d3-516b-d5c6-5802-169c800dec89",
+  "severity": "minimal",
+  "title": "Quota request for Batch",
+  "descriptionTemplate": "Request Summary / New Limit: \nSpot/low-priority vCPUs (all Series), {region} / {newLimit}\n",
+  "advancedDiagnosticConsent": "Yes",
+  "require24X7Response": false,
+  "supportPlanId": "U291cmNlOkZyZWUsRnJlZUlkOjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwOSw%3d",
+  "quotaChangeRequestVersion": "1.0",
+  "quotaChangeRequestSubType": "Account",
+  "quotaRequestType": "LowPriority",
+  "newLimit": 680
+}
