@@ -355,6 +355,7 @@ $functionNames = @(
     "Get-StatusCode",
     "Is-ThrottledResponse",
     "Get-RetryAfterSeconds",
+    "Get-AzureRegionList",
     "Invoke-AzCommand",
     "Invoke-AzDeviceCodeLogin",
     "Get-AccessTokenFromAzCli",
@@ -452,7 +453,7 @@ function Get-AzureSupportDiscoveryRows {
     $regionFilterValue = if ([string]::IsNullOrWhiteSpace($RegionFilter)) { '' } else { $RegionFilter.Trim() }
     $accountFilterValue = if ([string]::IsNullOrWhiteSpace($AccountFilter)) { '' } else { $AccountFilter.Trim() }
 
-    $rawSubscriptions = Invoke-AzCommand -Args @("account", "list", "--all", "-o", "json")
+    $rawSubscriptions = Invoke-AzCommand -CommandArgs @("account", "list", "--all", "-o", "json")
     $parsedSubscriptions = ConvertFrom-Json -InputObject $rawSubscriptions -ErrorAction Stop
     $subscriptions = ConvertTo-DiscoveryCollection -InputObject $parsedSubscriptions
 
@@ -808,5 +809,6 @@ Export-ModuleMember -Function @(
     "ConvertTo-DiscoveryCollection",
     "New-DiscoveryGridRow",
     "Test-DiscoveryRegionValue",
-    "Convert-ProfileToUnifiedSchema"
+    "Convert-ProfileToUnifiedSchema",
+    "Get-AzureRegionList"
 )

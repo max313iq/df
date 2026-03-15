@@ -15,11 +15,7 @@ $fail = 0
 $tests = New-Object System.Collections.Generic.List[object]
 
 function Write-TestResult {
-    param(
-        [string]$Name,
-        [bool]$Passed,
-        [string]$Detail = ''
-    )
+    param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
     $color = if ($Passed) { 'Green' } else { 'Red' }
     Write-Host "  [$status] $Name" -ForegroundColor $color
@@ -72,7 +68,8 @@ $requiredExports = @(
     'New-RunProfileSnapshot',
     'Get-RunProfile',
     'Save-RunProfile',
-    'Convert-ProfileToUnifiedSchema'
+    'Convert-ProfileToUnifiedSchema',
+    'Get-AzureRegionList'
 )
 
 foreach ($fn in $requiredExports) {
@@ -126,6 +123,21 @@ $regionCheck4 = Test-DiscoveryRegionValue -Region 'eastus' -DiscoveredRegions @(
 Write-TestResult -Name 'Region with no discovered list passes' -Passed ($regionCheck4.IsValid -and $regionCheck4.Warnings.Count -eq 0)
 
 # -------------------------------------------------------------------
+Write-Host "`n=== Azure Region List ===" -ForegroundColor Cyan
+# -------------------------------------------------------------------
+
+try {
+    $regionList = @(Get-AzureRegionList)
+    Write-TestResult -Name 'Get-AzureRegionList returns results' -Passed ($regionList.Count -gt 0) -Detail "Count: $($regionList.Count)"
+    Write-TestResult -Name 'Region list contains eastus' -Passed ($regionList -contains 'eastus')
+    Write-TestResult -Name 'Region list contains westeurope' -Passed ($regionList -contains 'westeurope')
+    Write-TestResult -Name 'Region list is sorted' -Passed ($regionList[0] -le $regionList[-1])
+}
+catch {
+    Write-TestResult -Name 'Get-AzureRegionList' -Passed $false -Detail $_.Exception.Message
+}
+
+# -------------------------------------------------------------------
 Write-Host "`n=== Discovery Grid Row ===" -ForegroundColor Cyan
 # -------------------------------------------------------------------
 
@@ -140,17 +152,25 @@ $gridRowEmpty = New-DiscoveryGridRow -Id 'test-2' -SubscriptionId 'sub-456' -Ten
 Write-TestResult -Name 'Grid row empty region defaults to eastus' -Passed ($gridRowEmpty.Region -eq 'eastus')
 
 # -------------------------------------------------------------------
+Write-Host "`n=== Invoke-AzCommand Parameter Fix ===" -ForegroundColor Cyan
+# -------------------------------------------------------------------
+
+$cmdInfo = Get-Command Invoke-AzCommand -ErrorAction SilentlyContinue
+if ($null -ne $cmdInfo) {
+    $paramNames = $cmdInfo.Parameters.Keys
+    Write-TestResult -Name 'Invoke-AzCommand has CommandArgs parameter' -Passed ($paramNames -contains 'CommandArgs')
+    Write-TestResult -Name 'Invoke-AzCommand does not shadow $Args' -Passed ($paramNames -notcontains 'Args')
+} else {
+    Write-TestResult -Name 'Invoke-AzCommand exported' -Passed $false -Detail 'Function not found'
+}
+
+# -------------------------------------------------------------------
 Write-Host "`n=== Retry Parameter Alignment ===" -ForegroundColor Cyan
 # -------------------------------------------------------------------
 
 $preflight = Test-AzureSupportPreFlight `
     -Requests @([pscustomobject]@{ sub = 'sub-1'; account = 'acct-1'; region = 'eastus'; limit = 100; quotaType = 'LowPriority' }) `
-    -Token 'test-token' `
-    -TryAzCliToken $false `
-    -DelaySeconds 5 `
-    -MaxRetries 3 `
-    -BaseRetrySeconds 10 `
-    -RequestsPerMinute 2
+    -Token 'test-token' -TryAzCliToken $false -DelaySeconds 5 -MaxRetries 3 -BaseRetrySeconds 10 -RequestsPerMinute 2
 Write-TestResult -Name 'Preflight validation passes for valid request' -Passed $preflight.IsValid
 
 $preflightDup = Test-AzureSupportPreFlight `
@@ -158,12 +178,7 @@ $preflightDup = Test-AzureSupportPreFlight `
         [pscustomobject]@{ sub = 'sub-1'; account = 'acct-1'; region = 'eastus' },
         [pscustomobject]@{ sub = 'sub-1'; account = 'acct-1'; region = 'eastus' }
     ) `
-    -Token 'test-token' `
-    -TryAzCliToken $false `
-    -DelaySeconds 5 `
-    -MaxRetries 3 `
-    -BaseRetrySeconds 10 `
-    -RequestsPerMinute 2
+    -Token 'test-token' -TryAzCliToken $false -DelaySeconds 5 -MaxRetries 3 -BaseRetrySeconds 10 -RequestsPerMinute 2
 Write-TestResult -Name 'Preflight detects duplicate requests' -Passed (-not $preflightDup.IsValid)
 
 # -------------------------------------------------------------------
@@ -171,78 +186,34 @@ Write-Host "`n=== Profile Schema Migration ===" -ForegroundColor Cyan
 # -------------------------------------------------------------------
 
 $flatProfile = [pscustomobject]@{
-    DelaySeconds       = 10
-    RequestsPerMinute  = 5
-    MaxRetries         = 3
-    BaseRetrySeconds   = 15
-    NewLimit           = 500
-    QuotaType          = 'Dedicated'
-    Title              = 'Test Ticket'
-    ContactFirstName   = 'John'
-    ContactLastName    = 'Doe'
-    ContactEmail       = 'john@example.com'
-    PreferredTimeZone  = 'UTC'
-    PreferredSupportLanguage = 'en-us'
-    RunStatePath       = 'C:\test\state.json'
-    TicketTemplatePath = 'C:\test\template.json'
-    TryAzCliToken      = $true
-    UseDeviceCodeLogin = $false
-    RotateFingerprint  = $true
-    DryRun             = $false
-    StopOnFirstFailure = $false
-    ResumeFromState    = $false
-    RetryFailedOnly    = $true
-    SelectedRequestIds = @('id1', 'id2')
+    DelaySeconds = 10; RequestsPerMinute = 5; MaxRetries = 3; BaseRetrySeconds = 15
+    NewLimit = 500; QuotaType = 'Dedicated'; Title = 'Test Ticket'
+    ContactFirstName = 'John'; ContactLastName = 'Doe'; ContactEmail = 'john@example.com'
+    PreferredTimeZone = 'UTC'; PreferredSupportLanguage = 'en-us'
+    RunStatePath = 'C:\test\state.json'; TicketTemplatePath = 'C:\test\template.json'
+    TryAzCliToken = $true; UseDeviceCodeLogin = $false; RotateFingerprint = $true
+    DryRun = $false; StopOnFirstFailure = $false; ResumeFromState = $false
+    RetryFailedOnly = $true; SelectedRequestIds = @('id1', 'id2')
 }
 
 $v1Profile = [pscustomobject]@{
-    profileVersion = 1
-    createdAt      = '2026-01-01T00:00:00Z'
-    tokenSource    = 'AzureCli'
-    runSettings    = @{
-        DelaySeconds       = 20
-        RequestsPerMinute  = 10
-        MaxRetries         = 6
-        BaseRetrySeconds   = 25
-        RotateFingerprint  = $true
-        MaxRequests        = 0
-        TryAzCliToken      = $true
-        UseDeviceCodeLogin = $false
-        StopOnFirstFailure = $false
+    profileVersion = 1; createdAt = '2026-01-01T00:00:00Z'; tokenSource = 'AzureCli'
+    runSettings = @{
+        DelaySeconds = 20; RequestsPerMinute = 10; MaxRetries = 6; BaseRetrySeconds = 25
+        RotateFingerprint = $true; MaxRequests = 0; TryAzCliToken = $true
+        UseDeviceCodeLogin = $false; StopOnFirstFailure = $false
     }
-    execution      = @{
-        DryRun              = $false
-        RetryFailedRequests = $false
-        ResumeFromState     = $false
-        CancelSignalPath    = ''
+    execution = @{ DryRun = $false; RetryFailedRequests = $false; ResumeFromState = $false; CancelSignalPath = '' }
+    proxy = @{ Url = ''; UseDefaultCredentials = $false }
+    resume = @{ RunStatePath = 'C:\test\run-state.json' }
+    defaults = @{ Region = 'eastus'; QuotaType = 'LowPriority' }
+    ticket = @{
+        NewLimit = 680; QuotaType = 'LowPriority'; Title = 'Quota request for Batch'
+        ContactFirstName = 'Support'; ContactLastName = 'User'; ContactEmail = 'support@example.com'
+        PreferredTimeZone = 'UTC'; PreferredSupportLanguage = 'en-us'
+        TicketTemplatePath = 'C:\test\template.json'; ResultJsonPath = ''; ResultCsvPath = ''
     }
-    proxy          = @{
-        Url                   = ''
-        UseDefaultCredentials = $false
-    }
-    resume         = @{
-        RunStatePath = 'C:\test\run-state.json'
-    }
-    defaults       = @{
-        Region    = 'eastus'
-        QuotaType = 'LowPriority'
-    }
-    ticket         = @{
-        NewLimit                 = 680
-        QuotaType                = 'LowPriority'
-        Title                    = 'Quota request for Batch'
-        ContactFirstName         = 'Support'
-        ContactLastName          = 'User'
-        ContactEmail             = 'support@example.com'
-        PreferredTimeZone        = 'UTC'
-        PreferredSupportLanguage = 'en-us'
-        TicketTemplatePath       = 'C:\test\template.json'
-        ResultJsonPath           = ''
-        ResultCsvPath            = ''
-    }
-    ui             = @{
-        SelectedRequestIds = @('id3')
-    }
+    ui = @{ SelectedRequestIds = @('id3') }
 }
 
 $hasMigrationFn = $null -ne (Get-Command Convert-ProfileToUnifiedSchema -ErrorAction SilentlyContinue)
@@ -277,43 +248,23 @@ if ($hasMigrationFn) {
 
     try {
         $mixedProfile = [pscustomobject]@{
-            profileVersion = 1
-            createdAt      = '2026-01-01T00:00:00Z'
-            tokenSource    = 'AzureCli'
-            runSettings    = @{
-                DelaySeconds       = 15
-                RequestsPerMinute  = 4
-                MaxRetries         = 2
-                BaseRetrySeconds   = 12
-                RotateFingerprint  = $false
-                MaxRequests        = 0
-                TryAzCliToken      = $true
-                UseDeviceCodeLogin = $false
-                StopOnFirstFailure = $true
+            profileVersion = 1; createdAt = '2026-01-01T00:00:00Z'; tokenSource = 'AzureCli'
+            runSettings = @{
+                DelaySeconds = 15; RequestsPerMinute = 4; MaxRetries = 2; BaseRetrySeconds = 12
+                RotateFingerprint = $false; MaxRequests = 0; TryAzCliToken = $true
+                UseDeviceCodeLogin = $false; StopOnFirstFailure = $true
             }
-            execution      = @{
-                DryRun              = $true
-                RetryFailedRequests = $true
-                ResumeFromState     = $true
-                CancelSignalPath    = ''
+            execution = @{ DryRun = $true; RetryFailedRequests = $true; ResumeFromState = $true; CancelSignalPath = '' }
+            proxy = @{ Url = 'http://proxy:8080'; UseDefaultCredentials = $true }
+            resume = @{ RunStatePath = 'C:\test\resume-state.json' }
+            defaults = @{ Region = 'westus2'; QuotaType = 'Dedicated' }
+            ticket = @{
+                NewLimit = 1000; QuotaType = 'Dedicated'; Title = 'Dedicated quota request'
+                ContactFirstName = 'Jane'; ContactLastName = 'Smith'; ContactEmail = 'jane@example.com'
+                PreferredTimeZone = 'Pacific Standard Time'; PreferredSupportLanguage = 'en-us'
+                TicketTemplatePath = 'C:\test\template.json'; ResultJsonPath = 'C:\test\result.json'; ResultCsvPath = 'C:\test\result.csv'
             }
-            proxy          = @{ Url = 'http://proxy:8080'; UseDefaultCredentials = $true }
-            resume         = @{ RunStatePath = 'C:\test\resume-state.json' }
-            defaults       = @{ Region = 'westus2'; QuotaType = 'Dedicated' }
-            ticket         = @{
-                NewLimit                 = 1000
-                QuotaType                = 'Dedicated'
-                Title                    = 'Dedicated quota request'
-                ContactFirstName         = 'Jane'
-                ContactLastName          = 'Smith'
-                ContactEmail             = 'jane@example.com'
-                PreferredTimeZone        = 'Pacific Standard Time'
-                PreferredSupportLanguage = 'en-us'
-                TicketTemplatePath       = 'C:\test\template.json'
-                ResultJsonPath           = 'C:\test\result.json'
-                ResultCsvPath            = 'C:\test\result.csv'
-            }
-            ui             = @{ SelectedRequestIds = @('r1', 'r2', 'r3') }
+            ui = @{ SelectedRequestIds = @('r1', 'r2', 'r3') }
         }
         $result = Convert-ProfileToUnifiedSchema -Profile $mixedProfile -TemplateDefaults $defaults
         Write-TestResult -Name 'Resume/retry profile preserves execution.ResumeFromState' -Passed ($result.Profile.execution.ResumeFromState -eq $true)
@@ -383,13 +334,9 @@ Write-TestResult -Name 'Template defaultRequests parsed' -Passed ($templateReque
 
 if ($templateRequests.Count -gt 0) {
     $templatePreflight = Test-AzureSupportPreFlight `
-        -Requests $templateRequests `
-        -Token 'template-dry-run-token' `
-        -TryAzCliToken $false `
-        -DelaySeconds ([int]$defaults.DelaySeconds) `
-        -MaxRetries ([int]$defaults.MaxRetries) `
-        -BaseRetrySeconds ([int]$defaults.BaseRetrySeconds) `
-        -RequestsPerMinute ([int]$defaults.RequestsPerMinute)
+        -Requests $templateRequests -Token 'template-dry-run-token' -TryAzCliToken $false `
+        -DelaySeconds ([int]$defaults.DelaySeconds) -MaxRetries ([int]$defaults.MaxRetries) `
+        -BaseRetrySeconds ([int]$defaults.BaseRetrySeconds) -RequestsPerMinute ([int]$defaults.RequestsPerMinute)
     Write-TestResult -Name 'Template-only preflight passes' -Passed $templatePreflight.IsValid -Detail "Errors: $($templatePreflight.Errors -join '; ')"
 
     foreach ($req in $templateRequests) {
@@ -412,22 +359,15 @@ Write-TestResult -Name 'Mock discovery rows created' -Passed ($mockDiscoveryRows
 $autoRequests = @()
 foreach ($row in $mockDiscoveryRows) {
     $autoRequests += [pscustomobject]@{
-        sub       = [string]$row.SubscriptionId
-        account   = [string]$row.AccountName
-        region    = [string]$row.Region
-        limit     = [int]$defaults.NewLimit
-        quotaType = [string]$defaults.QuotaType
+        sub = [string]$row.SubscriptionId; account = [string]$row.AccountName
+        region = [string]$row.Region; limit = [int]$defaults.NewLimit; quotaType = [string]$defaults.QuotaType
     }
 }
 
 $autoPreflight = Test-AzureSupportPreFlight `
-    -Requests $autoRequests `
-    -Token 'auto-dry-run-token' `
-    -TryAzCliToken $false `
-    -DelaySeconds ([int]$defaults.DelaySeconds) `
-    -MaxRetries ([int]$defaults.MaxRetries) `
-    -BaseRetrySeconds ([int]$defaults.BaseRetrySeconds) `
-    -RequestsPerMinute ([int]$defaults.RequestsPerMinute)
+    -Requests $autoRequests -Token 'auto-dry-run-token' -TryAzCliToken $false `
+    -DelaySeconds ([int]$defaults.DelaySeconds) -MaxRetries ([int]$defaults.MaxRetries) `
+    -BaseRetrySeconds ([int]$defaults.BaseRetrySeconds) -RequestsPerMinute ([int]$defaults.RequestsPerMinute)
 Write-TestResult -Name 'Autodiscovery preflight passes' -Passed $autoPreflight.IsValid -Detail "Errors: $($autoPreflight.Errors -join '; ')"
 
 foreach ($row in $mockDiscoveryRows) {
@@ -441,43 +381,23 @@ Write-Host "`n=== Dry-Run Scenario: Resume/Retry Profile Roundtrip ===" -Foregro
 
 $resumeProfilePath = Join-Path $testResultDir 'resume-profile-test.json'
 $resumeProfile = [ordered]@{
-    profileVersion = 1
-    createdAt      = (Get-Date).ToString('o')
-    tokenSource    = 'Token'
-    runSettings    = @{
-        DelaySeconds       = 5
-        RequestsPerMinute  = 10
-        MaxRetries         = 2
-        BaseRetrySeconds   = 10
-        RotateFingerprint  = $true
-        MaxRequests        = 0
-        TryAzCliToken      = $false
-        UseDeviceCodeLogin = $false
-        StopOnFirstFailure = $false
+    profileVersion = 1; createdAt = (Get-Date).ToString('o'); tokenSource = 'Token'
+    runSettings = @{
+        DelaySeconds = 5; RequestsPerMinute = 10; MaxRetries = 2; BaseRetrySeconds = 10
+        RotateFingerprint = $true; MaxRequests = 0; TryAzCliToken = $false
+        UseDeviceCodeLogin = $false; StopOnFirstFailure = $false
     }
-    execution      = @{
-        DryRun              = $true
-        RetryFailedRequests = $true
-        ResumeFromState     = $true
-        CancelSignalPath    = ''
+    execution = @{ DryRun = $true; RetryFailedRequests = $true; ResumeFromState = $true; CancelSignalPath = '' }
+    proxy = @{ Url = ''; UseDefaultCredentials = $false }
+    resume = @{ RunStatePath = Join-Path $testResultDir 'test-run-state.json' }
+    defaults = @{ Region = 'eastus'; QuotaType = 'LowPriority' }
+    ticket = @{
+        NewLimit = 500; QuotaType = 'LowPriority'; Title = 'Test resume ticket'
+        ContactFirstName = 'Test'; ContactLastName = 'User'; ContactEmail = 'test@example.com'
+        PreferredTimeZone = 'UTC'; PreferredSupportLanguage = 'en-us'
+        TicketTemplatePath = $templatePath; ResultJsonPath = ''; ResultCsvPath = ''
     }
-    proxy          = @{ Url = ''; UseDefaultCredentials = $false }
-    resume         = @{ RunStatePath = Join-Path $testResultDir 'test-run-state.json' }
-    defaults       = @{ Region = 'eastus'; QuotaType = 'LowPriority' }
-    ticket         = @{
-        NewLimit                 = 500
-        QuotaType                = 'LowPriority'
-        Title                    = 'Test resume ticket'
-        ContactFirstName         = 'Test'
-        ContactLastName          = 'User'
-        ContactEmail             = 'test@example.com'
-        PreferredTimeZone        = 'UTC'
-        PreferredSupportLanguage = 'en-us'
-        TicketTemplatePath       = $templatePath
-        ResultJsonPath           = ''
-        ResultCsvPath            = ''
-    }
-    ui             = @{ SelectedRequestIds = @('auto-1', 'auto-2') }
+    ui = @{ SelectedRequestIds = @('auto-1', 'auto-2') }
 }
 
 try {
@@ -491,7 +411,6 @@ catch {
 try {
     $loadedProfile = Get-RunProfile -Path $resumeProfilePath
     Write-TestResult -Name 'Resume profile loaded from disk' -Passed ($null -ne $loadedProfile)
-
     $roundtripped = Convert-ProfileToUnifiedSchema -Profile $loadedProfile -TemplateDefaults $defaults
     Write-TestResult -Name 'Resume profile roundtrip not flagged as migrated' -Passed ($roundtripped.Migrated -eq $false)
     Write-TestResult -Name 'Resume profile roundtrip preserves RetryFailedRequests' -Passed ($roundtripped.Profile.execution.RetryFailedRequests -eq $true)

@@ -7,72 +7,72 @@ param(
     [int]$DelaySeconds = 23,
 
     [Parameter(Mandatory = $false)]
-[string]$TicketTemplatePath,
+    [string]$TicketTemplatePath,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactFirstName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactFirstName,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactLastName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactLastName,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredContactMethod,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredContactMethod,
 
-[Parameter(Mandatory = $false)]
-[string]$PrimaryEmailAddress,
+    [Parameter(Mandatory = $false)]
+    [string]$PrimaryEmailAddress,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredTimeZone,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredTimeZone,
 
-[Parameter(Mandatory = $false)]
-[string]$Country,
+    [Parameter(Mandatory = $false)]
+    [string]$Country,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredSupportLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredSupportLanguage,
 
-[Parameter(Mandatory = $false)]
-[string[]]$AdditionalEmailAddresses,
+    [Parameter(Mandatory = $false)]
+    [string[]]$AdditionalEmailAddresses,
 
-[Parameter(Mandatory = $false)]
-[string]$AcceptLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$AcceptLanguage,
 
-[Parameter(Mandatory = $false)]
-[string]$ProblemClassificationId,
+    [Parameter(Mandatory = $false)]
+    [string]$ProblemClassificationId,
 
-[Parameter(Mandatory = $false)]
-[string]$ServiceId,
+    [Parameter(Mandatory = $false)]
+    [string]$ServiceId,
 
-[Parameter(Mandatory = $false)]
-[string]$Severity,
+    [Parameter(Mandatory = $false)]
+    [string]$Severity,
 
-[Parameter(Mandatory = $false)]
-[string]$Title,
+    [Parameter(Mandatory = $false)]
+    [string]$Title,
 
-[Parameter(Mandatory = $false)]
-[string]$DescriptionTemplate,
+    [Parameter(Mandatory = $false)]
+    [string]$DescriptionTemplate,
 
-[Parameter(Mandatory = $false)]
-[string]$AdvancedDiagnosticConsent,
+    [Parameter(Mandatory = $false)]
+    [string]$AdvancedDiagnosticConsent,
 
-[Parameter(Mandatory = $false)]
-[Nullable[bool]]$Require24X7Response,
+    [Parameter(Mandatory = $false)]
+    [Nullable[bool]]$Require24X7Response,
 
-[Parameter(Mandatory = $false)]
-[string]$SupportPlanId,
+    [Parameter(Mandatory = $false)]
+    [string]$SupportPlanId,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestVersion,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestVersion,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestSubType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestSubType,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaRequestType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaRequestType,
 
-[Parameter(Mandatory = $false)]
-[Nullable[int]]$NewLimit,
+    [Parameter(Mandatory = $false)]
+    [Nullable[int]]$NewLimit,
 
-[Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false)]
     [switch]$DryRun,
 
     [Parameter(Mandatory = $false)]
@@ -1184,18 +1184,66 @@ function Get-RetryAfterSeconds {
     catch { return $null }
 }
 
+$script:CachedAzureRegions = $null
+
+function Get-AzureRegionList {
+    [CmdletBinding()]
+    param([switch]$ForceRefresh)
+
+    if (-not $ForceRefresh -and $null -ne $script:CachedAzureRegions -and $script:CachedAzureRegions.Count -gt 0) {
+        return $script:CachedAzureRegions
+    }
+
+    $azPath = Get-Command az -ErrorAction SilentlyContinue
+    if (-not $azPath) {
+        return @(
+            'australiaeast','australiasoutheast','brazilsouth','canadacentral','canadaeast',
+            'centralindia','centralus','eastasia','eastus','eastus2','francecentral',
+            'germanywestcentral','japaneast','japanwest','koreacentral','koreasouth',
+            'northcentralus','northeurope','norwayeast','polandcentral','qatarcentral',
+            'southafricanorth','southcentralus','southeastasia','swedencentral','switzerlandnorth',
+            'uaenorth','uksouth','ukwest','westcentralus','westeurope','westus','westus2','westus3'
+        )
+    }
+
+    try {
+        $raw = Invoke-AzCommand -CommandArgs @("account", "list-locations", "--query", "[].name", "-o", "tsv")
+        $regions = New-Object System.Collections.Generic.List[string]
+        foreach ($line in ($raw -split "`r?`n")) {
+            $trimmed = $line.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                $regions.Add($trimmed)
+            }
+        }
+        $sorted = @($regions | Sort-Object)
+        if ($sorted.Count -gt 0) {
+            $script:CachedAzureRegions = $sorted
+        }
+        return $sorted
+    }
+    catch {
+        Write-Warning "Unable to fetch Azure regions: $($_.Exception.Message)"
+        return @(
+            'australiaeast','brazilsouth','canadacentral','centralindia','centralus',
+            'eastasia','eastus','eastus2','francecentral','japaneast','koreacentral',
+            'northcentralus','northeurope','southcentralus','southeastasia',
+            'swedencentral','uksouth','westeurope','westus','westus2','westus3'
+        )
+    }
+}
+
 function Invoke-AzCommand {
-    param([Parameter(Mandatory = $true)][string[]]$Args)
+    param([Parameter(Mandatory = $true)][string[]]$CommandArgs)
 
     $azPath = Get-Command az -ErrorAction SilentlyContinue
     if (-not $azPath) {
         throw "Azure CLI (az) was not found in PATH."
     }
 
-    $output = & az @Args 2>&1
+    $output = & az @CommandArgs 2>&1
 
     if ($azPath.CommandType -eq "Application" -and $LASTEXITCODE -ne 0) {
-        throw "az $($Args -join ' ') failed: $output"
+        throw "az $($CommandArgs -join ' ') failed: $output"
     }
 
     if ($output -is [array]) {
@@ -1210,13 +1258,13 @@ function Invoke-AzDeviceCodeLogin {
     Write-Host "Running Azure device-code login..."
     Write-Host "Azure CLI will print a login URL and one-time code below."
 
-    $args = @("login", "--use-device-code")
+    $loginArgs = @("login", "--use-device-code")
     if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-        $args += @("--tenant", $TenantId)
+        $loginArgs += @("--tenant", $TenantId)
         Write-Host "Tenant-scoped login requested for tenant: $TenantId"
     }
 
-    $output = Invoke-AzCommand -Args $args
+    $output = Invoke-AzCommand -CommandArgs $loginArgs
     if ($output) {
         foreach ($line in ($output -split "`r?`n")) {
             if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -1234,16 +1282,16 @@ function Get-AccessTokenFromAzCli {
     )
 
     try {
-        $args = @("account", "get-access-token", "--resource", "https://management.azure.com/", "-o", "json")
+        $tokenArgs = @("account", "get-access-token", "--resource", "https://management.azure.com/", "-o", "json")
         if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
-            $args += @("--subscription", $SubscriptionId)
+            $tokenArgs += @("--subscription", $SubscriptionId)
         }
         if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-            $args += @("--tenant", $TenantId)
+            $tokenArgs += @("--tenant", $TenantId)
         }
 
-        $raw = Invoke-AzCommand -Args $args
-    $tokenObj = ConvertFrom-Json -InputObject $raw
+        $raw = Invoke-AzCommand -CommandArgs $tokenArgs
+        $tokenObj = ConvertFrom-Json -InputObject $raw
         if ($null -eq $tokenObj -or [string]::IsNullOrWhiteSpace($tokenObj.accessToken)) {
             if ($ThrowOnError) { throw "Azure CLI returned no access token." }
             return $null
@@ -1262,7 +1310,7 @@ function Get-AccessTokenFromAzCli {
 function Get-SubscriptionTenantMapFromAzCli {
     param([string[]]$FilterSubscriptionIds)
 
-    $raw = Invoke-AzCommand -Args @("account", "list", "--all", "-o", "json")
+    $raw = Invoke-AzCommand -CommandArgs @("account", "list", "--all", "-o", "json")
     $accounts = ConvertFrom-Json -InputObject $raw
 
     $map = @{}
@@ -1285,7 +1333,7 @@ function Get-SubscriptionTenantIdFromAzCli {
     param([Parameter(Mandatory = $true)][string]$SubscriptionId)
 
     try {
-        $raw = Invoke-AzCommand -Args @("account", "show", "--subscription", $SubscriptionId, "-o", "json")
+        $raw = Invoke-AzCommand -CommandArgs @("account", "show", "--subscription", $SubscriptionId, "-o", "json")
         $acct = ConvertFrom-Json -InputObject $raw
         if ($null -ne $acct -and -not [string]::IsNullOrWhiteSpace($acct.tenantId)) {
             return $acct.tenantId
@@ -1389,7 +1437,7 @@ function Get-SubscriptionsFromAzCli {
         return $RequestedIds
     }
 
-    $raw = Invoke-AzCommand -Args @("account", "list", "--query", "[].id", "-o", "tsv")
+    $raw = Invoke-AzCommand -CommandArgs @("account", "list", "--query", "[].id", "-o", "tsv")
     $subs = @()
     foreach ($line in ($raw -split "`r?`n")) {
         if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -1419,7 +1467,7 @@ function Get-BatchRequestsFromAzCli {
 
     $discovered = @()
     foreach ($sub in $SubscriptionList) {
-        $raw = Invoke-AzCommand -Args @("batch", "account", "list", "--subscription", $sub, "-o", "json")
+        $raw = Invoke-AzCommand -CommandArgs @("batch", "account", "list", "--subscription", $sub, "-o", "json")
         $parsed = ConvertFrom-Json -InputObject $raw
         $accounts = Normalize-JsonCollection -InputObject $parsed
 
@@ -1734,9 +1782,9 @@ function Invoke-AzureSupportBatchQuotaRun {
     }
 
     if ($MaxRequests -lt 0) { throw "MaxRequests cannot be negative." }
-if ($MaxRetries -lt 0) { throw "MaxRetries cannot be negative." }
-if ($BaseRetrySeconds -lt 1) { throw "BaseRetrySeconds must be >= 1." }
-if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were provided." }
+    if ($MaxRetries -lt 0) { throw "MaxRetries cannot be negative." }
+    if ($BaseRetrySeconds -lt 1) { throw "BaseRetrySeconds must be >= 1." }
+    if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were provided." }
 
     $effectiveContactDetails = $null
     $effectiveProblemClassificationId = $null
@@ -1760,12 +1808,12 @@ if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were pr
 
     $normalizedRequests = @(Expand-AccountRegionRequests -Requests $Requests)
     if (-not $normalizedRequests -or $normalizedRequests.Count -eq 0) {
-    throw "No valid account-region mappings were provided."
-}
+        throw "No valid account-region mappings were provided."
+    }
 
     $validatedRequests = New-Object System.Collections.Generic.List[object]
     $requestIndex = 0
-foreach ($request in $normalizedRequests) {
+    foreach ($request in $normalizedRequests) {
         $requestIndex++
 
         $subscription = Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')
@@ -2047,8 +2095,6 @@ foreach ($request in $normalizedRequests) {
         }
     }
 
-    $results = New-Object System.Collections.Generic.List[object]
-
 :RequestRunLoop
     foreach ($stateEntry in @($pendingStateItems | Sort-Object index)) {
         if (-not [string]::IsNullOrWhiteSpace($CancelSignalPath) -and (Test-Path $CancelSignalPath)) {
@@ -2173,33 +2219,6 @@ foreach ($request in $normalizedRequests) {
             $stateEntry.completedAt = $dryRunEnd.ToUniversalTime().ToString('o')
             $stateEntry.error = $null
             Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
-            $results.Add([pscustomobject]@{
-                requestIndex = $r.Index
-                account = $r.account
-                subscription = $r.sub
-                region = $r.region
-                proxyUrl = $requestProxyUrl
-                ticket = $ticket
-                status = 'DryRun'
-                attempts = 1
-                durationSeconds = $dryRunDuration
-                retryCount = 0
-                timelineStartUtc = $requestStartUtc
-                timelineEndUtc = $dryRunEnd.ToUniversalTime().ToString('o')
-                interRequestDelaySeconds = $effectiveDelaySeconds
-                throttleWaitSeconds = 0
-                timeline = @{
-                    startUtc = $requestStartUtc
-                    endUtc = $dryRunEnd.ToUniversalTime().ToString('o')
-                    durationSeconds = $dryRunDuration
-                    interRequestDelaySeconds = $effectiveDelaySeconds
-                    maxRetries = $MaxRetries
-                    attempts = $attemptTimeline
-                    throttleWaitSeconds = 0
-                }
-                attemptTimeline = $attemptTimeline
-                error = $null
-            })
             if ($effectiveDelaySeconds -gt 0) {
                 Start-Sleep -Seconds $effectiveDelaySeconds
             }
@@ -2429,26 +2448,6 @@ foreach ($request in $normalizedRequests) {
         $stateEntry.error = $failureMessage
         $stateEntry.completedAt = $requestEnd.ToUniversalTime().ToString('o')
         Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
-
-        $results.Add([pscustomobject]@{
-            requestIndex = $r.Index
-            account = $r.account
-            subscription = $r.sub
-            region = $r.region
-            proxyUrl = $requestProxyUrl
-            ticket = $ticket
-            status = $requestStatus
-            attempts = $attemptCount
-            durationSeconds = $requestDuration
-            retryCount = [Math]::Max(0, $attemptCount - 1)
-            timelineStartUtc = $requestStartUtc
-            timelineEndUtc = $requestEnd.ToUniversalTime().ToString('o')
-            interRequestDelaySeconds = $effectiveDelaySeconds
-            throttleWaitSeconds = [math]::Round($throttleWaitSeconds, 2)
-            timeline = $timelineSnapshot
-            attemptTimeline = $attemptTimelineEntries
-            error = $failureMessage
-        })
 
         if (-not $succeeded) {
             Write-Log -Level ERROR -Message $failureMessage
@@ -2743,72 +2742,17 @@ if ($MyInvocation.InvocationName -ne '.') {
         throw "Ticket template '$resolvedTicketTemplatePath' is missing required contactDetails."
     }
 
-    $templateContact = $ticketTemplate.contactDetails
-    $additionalEmailSource = if ($PSBoundParameters.ContainsKey("AdditionalEmailAddresses")) {
-        @($AdditionalEmailAddresses)
-    }
-    else {
-        @($templateContact.additionalEmailAddresses)
-    }
-    $resolvedAdditionalEmailAddresses = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($email in @($additionalEmailSource)) {
-        if ($null -eq $email) {
-            continue
-        }
-        $text = [string]$email
-        if ([string]::IsNullOrWhiteSpace($text)) {
-            continue
-        }
-        $null = $resolvedAdditionalEmailAddresses.Add($text.Trim())
-    }
-
-    $effectiveContactDetails = @{
-        firstName = if ($PSBoundParameters.ContainsKey("ContactFirstName")) { $ContactFirstName } else { [string]$templateContact.firstName }
-        lastName = if ($PSBoundParameters.ContainsKey("ContactLastName")) { $ContactLastName } else { [string]$templateContact.lastName }
-        preferredContactMethod = if ($PSBoundParameters.ContainsKey("PreferredContactMethod")) { $PreferredContactMethod } else { [string]$templateContact.preferredContactMethod }
-        primaryEmailAddress = if ($PSBoundParameters.ContainsKey("PrimaryEmailAddress")) { $PrimaryEmailAddress } else { [string]$templateContact.primaryEmailAddress }
-        preferredTimeZone = if ($PSBoundParameters.ContainsKey("PreferredTimeZone")) { $PreferredTimeZone } else { [string]$templateContact.preferredTimeZone }
-        country = if ($PSBoundParameters.ContainsKey("Country")) { $Country } else { [string]$templateContact.country }
-        preferredSupportLanguage = if ($PSBoundParameters.ContainsKey("PreferredSupportLanguage")) { $PreferredSupportLanguage } else { [string]$templateContact.preferredSupportLanguage }
-        additionalEmailAddresses = $resolvedAdditionalEmailAddresses.ToArray()
-    }
-
-    $effectiveAcceptLanguage = if ($PSBoundParameters.ContainsKey("AcceptLanguage")) { $AcceptLanguage } else { [string]$ticketTemplate.acceptLanguage }
-    $effectiveProblemClassificationId = if ($PSBoundParameters.ContainsKey("ProblemClassificationId")) { $ProblemClassificationId } else { [string]$ticketTemplate.problemClassificationId }
-    $effectiveServiceId = if ($PSBoundParameters.ContainsKey("ServiceId")) { $ServiceId } else { [string]$ticketTemplate.serviceId }
-    $effectiveSeverity = if ($PSBoundParameters.ContainsKey("Severity")) { $Severity } else { [string]$ticketTemplate.severity }
-    $effectiveTitle = if ($PSBoundParameters.ContainsKey("Title")) { $Title } else { [string]$ticketTemplate.title }
-    $effectiveDescriptionTemplate = if ($PSBoundParameters.ContainsKey("DescriptionTemplate")) { $DescriptionTemplate } else { [string]$ticketTemplate.descriptionTemplate }
-    $effectiveAdvancedDiagnosticConsent = if ($PSBoundParameters.ContainsKey("AdvancedDiagnosticConsent")) { $AdvancedDiagnosticConsent } else { [string]$ticketTemplate.advancedDiagnosticConsent }
-    $effectiveRequire24X7Response = if ($PSBoundParameters.ContainsKey("Require24X7Response")) { [bool]$Require24X7Response } else { [bool]$ticketTemplate.require24X7Response }
-    $effectiveSupportPlanId = if ($PSBoundParameters.ContainsKey("SupportPlanId")) { $SupportPlanId } else { [string]$ticketTemplate.supportPlanId }
-    $effectiveQuotaChangeRequestVersion = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestVersion")) { $QuotaChangeRequestVersion } else { [string]$ticketTemplate.quotaChangeRequestVersion }
-    $effectiveQuotaChangeRequestSubType = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestSubType")) { $QuotaChangeRequestSubType } else { [string]$ticketTemplate.quotaChangeRequestSubType }
-    $effectiveQuotaRequestType = if ($PSBoundParameters.ContainsKey("QuotaRequestType")) { $QuotaRequestType } else { [string]$ticketTemplate.quotaRequestType }
-    $effectiveNewLimit = if ($PSBoundParameters.ContainsKey("NewLimit") -and $null -ne $NewLimit) { [int]$NewLimit } else { [int]$ticketTemplate.newLimit }
-
-    if ($effectiveNewLimit -le 0) {
-        throw "The resolved NewLimit must be a positive integer. Update the template or pass -NewLimit."
-    }
-
     $requests = @()
     if ($ticketTemplate.defaultRequests) {
         foreach ($requestTemplate in @($ticketTemplate.defaultRequests)) {
             if ($null -eq $requestTemplate) { continue }
-
             $templateSub = [string]$requestTemplate.sub
             $templateAccount = [string]$requestTemplate.account
             $templateRegion = [string]$requestTemplate.region
-
             if ([string]::IsNullOrWhiteSpace($templateSub) -or [string]::IsNullOrWhiteSpace($templateAccount) -or [string]::IsNullOrWhiteSpace($templateRegion)) {
                 continue
             }
-
-            $requests += @{
-                sub = $templateSub
-                account = $templateAccount
-                region = $templateRegion
-            }
+            $requests += @{ sub = $templateSub; account = $templateAccount; region = $templateRegion }
         }
     }
 
@@ -2819,203 +2763,62 @@ if ($MyInvocation.InvocationName -ne '.') {
     if ($AutoDiscoverRequests) {
         $subs = Get-SubscriptionsFromAzCli -RequestedIds $SubscriptionIds
         $requests = Get-BatchRequestsFromAzCli -SubscriptionList $subs
-
         if (-not $requests -or $requests.Count -eq 0) {
             throw "No Batch accounts were discovered from Azure CLI."
         }
-
         Write-Host "Discovered $($requests.Count) Batch accounts from Azure."
     }
 
     $resolvedProfilePath = Get-ResolvedArtifactPath -RequestedPath $RunProfilePath -FallbackFileName "azure-ticket-run-profile.json"
     $resolvedStatePath = Get-ResolvedArtifactPath -RequestedPath $RunStatePath -FallbackFileName "azure-support-ticket-run-state.json"
-    $boundParams = $PSBoundParameters
-
-    if ($LoadRunProfile) {
-        $loadedProfile = Read-SafeJsonFile -Path $resolvedProfilePath
-        if ($null -ne $loadedProfile) {
-            $loadedRunSettings = $loadedProfile.runSettings
-            $loadedProxy = $loadedProfile.proxy
-            $loadedExecution = $loadedProfile.execution
-            if ($null -eq $loadedRunSettings) { $loadedRunSettings = $loadedProfile }
-            if ($null -eq $loadedExecution) { $loadedExecution = $null }
-
-            if (-not $boundParams.ContainsKey('DelaySeconds') -and $loadedRunSettings.DelaySeconds) {
-                $DelaySeconds = [int]$loadedRunSettings.DelaySeconds
-            }
-            if (-not $boundParams.ContainsKey('RequestsPerMinute') -and $loadedRunSettings.RequestsPerMinute) {
-                $RequestsPerMinute = [int]$loadedRunSettings.RequestsPerMinute
-            }
-            if (-not $boundParams.ContainsKey('MaxRetries') -and $loadedRunSettings.MaxRetries) {
-                $MaxRetries = [int]$loadedRunSettings.MaxRetries
-            }
-            if (-not $boundParams.ContainsKey('BaseRetrySeconds') -and $loadedRunSettings.BaseRetrySeconds) {
-                $BaseRetrySeconds = [int]$loadedRunSettings.BaseRetrySeconds
-            }
-            if (-not $boundParams.ContainsKey('RotateFingerprint') -and $loadedRunSettings.RotateFingerprint -ne $null) {
-                $RotateFingerprint = $loadedRunSettings.RotateFingerprint
-            }
-            if (-not $boundParams.ContainsKey('MaxRequests') -and $loadedRunSettings.MaxRequests -ne $null) {
-                $MaxRequests = [int]$loadedRunSettings.MaxRequests
-            }
-            if (-not $boundParams.ContainsKey('TryAzCliToken') -and $loadedRunSettings.TryAzCliToken -ne $null) {
-                $TryAzCliToken = $loadedRunSettings.TryAzCliToken
-            }
-            if (-not $boundParams.ContainsKey('UseDeviceCodeLogin') -and $loadedRunSettings.UseDeviceCodeLogin -ne $null) {
-                $UseDeviceCodeLogin = $loadedRunSettings.UseDeviceCodeLogin
-            }
-            if (-not $boundParams.ContainsKey('StopOnFirstFailure') -and $loadedRunSettings.StopOnFirstFailure -ne $null) {
-                $StopOnFirstFailure = $loadedRunSettings.StopOnFirstFailure
-            }
-            if (-not $boundParams.ContainsKey('DryRun') -and $null -ne $loadedExecution -and $loadedExecution.DryRun -ne $null) {
-                $DryRun = $loadedExecution.DryRun
-            }
-            if (-not $boundParams.ContainsKey('RetryFailedRequests') -and $loadedExecution.RetryFailedRequests -ne $null) {
-                $RetryFailedRequests = $loadedExecution.RetryFailedRequests
-            }
-            if (-not $boundParams.ContainsKey('ResumeFromState') -and $loadedExecution.ResumeFromState -ne $null) {
-                $ResumeFromState = $loadedExecution.ResumeFromState
-            }
-            if (-not $boundParams.ContainsKey('CancelSignalPath') -and $loadedExecution.CancelSignalPath) {
-                $CancelSignalPath = [string]$loadedExecution.CancelSignalPath
-            }
-            if (-not $boundParams.ContainsKey('ProxyUrl') -and $loadedProxy.Url) {
-                $ProxyUrl = [string]$loadedProxy.Url
-            }
-            if (-not $boundParams.ContainsKey('ProxyUseDefaultCredentials') -and $loadedProxy.UseDefaultCredentials -ne $null) {
-                $ProxyUseDefaultCredentials = $loadedProxy.UseDefaultCredentials
-            }
-            if (-not $boundParams.ContainsKey('ProxyPool') -and $loadedProxy.Pool -ne $null) {
-                $ProxyPool = @($loadedProxy.Pool)
-            }
-        }
-    }
-
-    $RotateFingerprint = Convert-ToBoolValue -Value $RotateFingerprint -Default $true -Name "RotateFingerprint"
-    $TryAzCliToken = Convert-ToBoolValue -Value $TryAzCliToken -Default $true -Name "TryAzCliToken"
-    $UseDeviceCodeLogin = Convert-ToBoolValue -Value $UseDeviceCodeLogin -Default $false -Name "UseDeviceCodeLogin"
-    $StopOnFirstFailure = Convert-ToBoolValue -Value $StopOnFirstFailure -Default $false -Name "StopOnFirstFailure"
-    $DryRun = Convert-ToBoolValue -Value $DryRun -Default $false -Name "DryRun"
-    $ResumeFromState = Convert-ToBoolValue -Value $ResumeFromState -Default $false -Name "ResumeFromState"
-    $RetryFailedRequests = Convert-ToBoolValue -Value $RetryFailedRequests -Default $false -Name "RetryFailedRequests"
-    $ProxyUseDefaultCredentials = Convert-ToBoolValue -Value $ProxyUseDefaultCredentials -Default $false -Name "ProxyUseDefaultCredentials"
-    if ($null -eq $ProxyPool) {
-        $ProxyPool = @()
-    }
-    else {
-        $ProxyPool = @(
-            @($ProxyPool) |
-                ForEach-Object { if ($null -eq $_) { '' } else { [string]$_ } } |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        )
-    }
-
-    $requests = Expand-AccountRegionRequests -Requests @($requests)
-
-    $preparedRequests = New-Object System.Collections.Generic.List[object]
-    $rawIndex = 0
-    foreach ($request in $requests) {
-        $rawIndex++
-        $subscription = Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')
-        $account = Resolve-RequestFieldValue -Request $request -FieldNames @('account', 'accountName', 'AccountName', 'name')
-        $region = Resolve-RequestFieldValue -Request $request -FieldNames @('region', 'location')
-        if ([string]::IsNullOrWhiteSpace($region)) {
-            $region = "eastus"
-        }
-
-        if ([string]::IsNullOrWhiteSpace($subscription)) {
-            throw "Request #$rawIndex is missing required subscription (sub/subscription/subscriptionId)."
-        }
-        if ([string]::IsNullOrWhiteSpace($account)) {
-            throw "Request #$rawIndex is missing required account (account/accountName/name)."
-        }
-
-        $limit = $effectiveNewLimit
-        $limitRaw = Resolve-RequestFieldValue -Request $request -FieldNames @('newLimit', 'NewLimit', 'limit')
-        if ($null -ne $limitRaw) {
-            $limitParsed = 0
-            if (-not [int]::TryParse([string]$limitRaw, [ref]$limitParsed) -or $limitParsed -lt 0) {
-                throw "Request #$rawIndex has an invalid newLimit '$limitRaw'."
-            }
-            $limit = $limitParsed
-        }
-
-        $quotaType = Resolve-RequestFieldValue -Request $request -FieldNames @('quotaType', 'type', 'Type')
-        if ([string]::IsNullOrWhiteSpace($quotaType)) {
-            $quotaType = $effectiveQuotaRequestType
-        }
-
-        $preparedRequests.Add([pscustomobject]@{
-            sub = $subscription.Trim()
-            account = $account.Trim()
-            region = $region.Trim()
-            limit = $limit
-            quotaType = $quotaType
-        })
-    }
-
-$preflight = Test-RunPreflight -Requests $preparedRequests -Token $Token -TryAzCliToken $TryAzCliToken -DryRun:$DryRun -DelaySeconds $DelaySeconds -RequestsPerMinute $RequestsPerMinute -ProxyUrl $ProxyUrl -ProxyPool $ProxyPool -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials -ProxyCredential $ProxyCredential
-if ($preflight -is [System.Management.Automation.PSCustomObject]) {
-    if (-not $preflight.IsValid) {
-        throw (($preflight.Errors) -join "; ")
-    }
-}
-else {
-    $preflightIssues = @($preflight)
-    if ($preflightIssues.Count -gt 0) {
-        throw ($preflightIssues -join "; ")
-    }
-    }
 
     $scriptStart = Get-Date
-    $resolvedTicketTemplatePath = Get-TicketTemplatePath -TicketTemplatePath $TicketTemplatePath
     $runParams = @{
-        Requests = $preparedRequests
-        Token = $Token
-        TicketTemplatePath = $resolvedTicketTemplatePath
-        ContactFirstName = $ContactFirstName
-        ContactLastName = $ContactLastName
-        PreferredContactMethod = $PreferredContactMethod
-        PrimaryEmailAddress = $PrimaryEmailAddress
-        PreferredTimeZone = $PreferredTimeZone
-        Country = $Country
+        Requests                 = $requests
+        Token                    = $Token
+        TicketTemplatePath       = $resolvedTicketTemplatePath
+        ContactFirstName         = $ContactFirstName
+        ContactLastName          = $ContactLastName
+        PreferredContactMethod   = $PreferredContactMethod
+        PrimaryEmailAddress      = $PrimaryEmailAddress
+        PreferredTimeZone        = $PreferredTimeZone
+        Country                  = $Country
         PreferredSupportLanguage = $PreferredSupportLanguage
         AdditionalEmailAddresses = $AdditionalEmailAddresses
-        AcceptLanguage = $AcceptLanguage
-        ProblemClassificationId = $ProblemClassificationId
-        ServiceId = $ServiceId
-        Severity = $Severity
-        Title = $Title
-        DescriptionTemplate = $DescriptionTemplate
+        AcceptLanguage           = $AcceptLanguage
+        ProblemClassificationId  = $ProblemClassificationId
+        ServiceId                = $ServiceId
+        Severity                 = $Severity
+        Title                    = $Title
+        DescriptionTemplate      = $DescriptionTemplate
         AdvancedDiagnosticConsent = $AdvancedDiagnosticConsent
-        Require24X7Response = $Require24X7Response
-        SupportPlanId = $SupportPlanId
-        QuotaChangeRequestVersion = $QuotaChangeRequestVersion
-        QuotaChangeRequestSubType = $QuotaChangeRequestSubType
-        QuotaRequestType = $QuotaRequestType
-        NewLimit = $NewLimit
-        DelaySeconds = $DelaySeconds
-        MaxRequests = $MaxRequests
-        DryRun = [bool]$DryRun
-        ProxyUrl = $ProxyUrl
+        Require24X7Response      = $Require24X7Response
+        SupportPlanId            = $SupportPlanId
+        QuotaChangeRequestVersion   = $QuotaChangeRequestVersion
+        QuotaChangeRequestSubType   = $QuotaChangeRequestSubType
+        QuotaRequestType         = $QuotaRequestType
+        NewLimit                 = $NewLimit
+        DelaySeconds             = $DelaySeconds
+        MaxRequests              = $MaxRequests
+        DryRun                   = [bool]$DryRun
+        ProxyUrl                 = $ProxyUrl
         ProxyUseDefaultCredentials = [bool]$ProxyUseDefaultCredentials
-        ProxyCredential = $ProxyCredential
-        ProxyPool = $ProxyPool
-        MaxRetries = $MaxRetries
-        BaseRetrySeconds = $BaseRetrySeconds
-        RotateFingerprint = [bool]$RotateFingerprint
-        TryAzCliToken = [bool]$TryAzCliToken
-        UseDeviceCodeLogin = [bool]$UseDeviceCodeLogin
-        RequestsPerMinute = $RequestsPerMinute
-        StopOnFirstFailure = [bool]$StopOnFirstFailure
-        RunProfilePath = $resolvedProfilePath
-        RunStatePath = $resolvedStatePath
-        ResumeFromState = [bool]$ResumeFromState
-        RetryFailedRequests = [bool]$RetryFailedRequests
-        CancelSignalPath = $CancelSignalPath
-        ResultJsonPath = $ResultJsonPath
-        ResultCsvPath = $ResultCsvPath
+        ProxyCredential          = $ProxyCredential
+        ProxyPool                = $ProxyPool
+        MaxRetries               = $MaxRetries
+        BaseRetrySeconds         = $BaseRetrySeconds
+        RotateFingerprint        = [bool]$RotateFingerprint
+        TryAzCliToken            = [bool]$TryAzCliToken
+        UseDeviceCodeLogin       = [bool]$UseDeviceCodeLogin
+        RequestsPerMinute        = $RequestsPerMinute
+        StopOnFirstFailure       = [bool]$StopOnFirstFailure
+        RunProfilePath           = $resolvedProfilePath
+        RunStatePath             = $resolvedStatePath
+        ResumeFromState          = [bool]$ResumeFromState
+        RetryFailedRequests      = [bool]$RetryFailedRequests
+        CancelSignalPath         = $CancelSignalPath
+        ResultJsonPath           = $ResultJsonPath
+        ResultCsvPath            = $ResultCsvPath
     }
     $cleanedRunParams = Remove-EmptyParameters -Parameters $runParams
     $results = @(Invoke-AzureSupportBatchQuotaRun @cleanedRunParams)
@@ -3024,44 +2827,23 @@ else {
     $failedCount = @($results | Where-Object { $_.status -eq 'Failed' }).Count
     $dryRunCount = @($results | Where-Object { $_.status -eq 'DryRun' }).Count
     $elapsedSeconds = [math]::Round(((Get-Date) - $scriptStart).TotalSeconds, 2)
-
     Write-Log -Message "Run completed. Submitted=$submittedCount Failed=$failedCount DryRun=$dryRunCount Total=$($results.Count) Duration=${elapsedSeconds}s"
 
     if ($SaveRunProfile) {
-        if (-not [string]::IsNullOrWhiteSpace($Token)) {
-            $tokenSource = "Token"
-        }
-        elseif ($TryAzCliToken) {
-            $tokenSource = "AzureCli"
-        }
-        else {
-            $tokenSource = "None"
-        }
-
+        $tokenSource = if (-not [string]::IsNullOrWhiteSpace($Token)) { "Token" } elseif ($TryAzCliToken) { "AzureCli" } else { "None" }
         $runProfile = New-RunProfileSnapshot `
             -TokenMode $tokenSource `
-            -DelaySeconds $DelaySeconds `
-            -RequestsPerMinute $RequestsPerMinute `
-            -MaxRetries $MaxRetries `
-            -BaseRetrySeconds $BaseRetrySeconds `
-            -RotateFingerprint $RotateFingerprint `
-            -TryAzCliToken $TryAzCliToken `
-            -UseDeviceCodeLogin $UseDeviceCodeLogin `
-            -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials `
-            -ProxyUrl $ProxyUrl `
-            -ProxyPool $ProxyPool `
-            -DryRun:$DryRun `
-            -StopOnFirstFailure $StopOnFirstFailure `
-            -MaxRequests $MaxRequests `
-            -RetryFailedRequests $RetryFailedRequests `
-            -ResumeFromState $ResumeFromState `
-            -CancelSignalPath $CancelSignalPath `
-            -RunStatePath $resolvedStatePath
-
+            -DelaySeconds $DelaySeconds -RequestsPerMinute $RequestsPerMinute `
+            -MaxRetries $MaxRetries -BaseRetrySeconds $BaseRetrySeconds `
+            -RotateFingerprint $RotateFingerprint -TryAzCliToken $TryAzCliToken `
+            -UseDeviceCodeLogin $UseDeviceCodeLogin -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials `
+            -ProxyUrl $ProxyUrl -ProxyPool $ProxyPool -DryRun:$DryRun `
+            -StopOnFirstFailure $StopOnFirstFailure -MaxRequests $MaxRequests `
+            -RetryFailedRequests $RetryFailedRequests -ResumeFromState $ResumeFromState `
+            -CancelSignalPath $CancelSignalPath -RunStatePath $resolvedStatePath
         Write-SafeJsonFile -Path $resolvedProfilePath -InputObject $runProfile -Depth 20
         Write-Log -Message "Saved run profile to $resolvedProfilePath"
     }
-
 
     if ($failedCount -gt 0 -and -not $DryRun) {
         exit 1

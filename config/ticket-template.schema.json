@@ -31,94 +31,45 @@
         "additionalEmailAddresses"
       ],
       "properties": {
-        "firstName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "lastName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "preferredContactMethod": {
-          "type": "string",
-          "enum": ["email", "phone", "chat"]
-        },
-        "primaryEmailAddress": {
-          "type": "string",
-          "format": "email"
-        },
-        "preferredTimeZone": {
-          "type": "string",
-          "minLength": 1
-        },
-        "country": {
-          "type": "string",
-          "minLength": 1
-        },
-        "preferredSupportLanguage": {
-          "type": "string",
-          "minLength": 2
-        },
+        "firstName": { "type": "string", "minLength": 1 },
+        "lastName": { "type": "string", "minLength": 1 },
+        "preferredContactMethod": { "type": "string", "enum": ["email", "phone", "chat"] },
+        "primaryEmailAddress": { "type": "string", "format": "email" },
+        "preferredTimeZone": { "type": "string", "minLength": 1 },
+        "country": { "type": "string", "minLength": 1 },
+        "preferredSupportLanguage": { "type": "string", "minLength": 2 },
         "additionalEmailAddresses": {
           "type": "array",
-          "items": {
-            "type": "string",
-            "format": "email"
-          }
+          "items": { "type": "string", "format": "email" }
         }
       },
       "additionalProperties": true
     },
-    "acceptLanguage": {
-      "type": "string",
-      "minLength": 1
-    },
-    "problemClassificationId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "serviceId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "severity": {
-      "type": "string",
-      "minLength": 1
-    },
-    "title": {
-      "type": "string",
-      "minLength": 1
-    },
-    "descriptionTemplate": {
-      "type": "string",
-      "minLength": 1
-    },
-    "advancedDiagnosticConsent": {
-      "type": "string",
-      "minLength": 1
-    },
-    "require24X7Response": {
-      "type": "boolean"
-    },
-    "supportPlanId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "quotaChangeRequestVersion": {
-      "type": "string",
-      "minLength": 1
-    },
-    "quotaChangeRequestSubType": {
-      "type": "string",
-      "minLength": 1
-    },
-    "quotaRequestType": {
-      "type": "string",
-      "minLength": 1
-    },
-    "newLimit": {
-      "type": "integer",
-      "minimum": 1
+    "acceptLanguage": { "type": "string", "minLength": 1 },
+    "problemClassificationId": { "type": "string", "minLength": 1 },
+    "serviceId": { "type": "string", "minLength": 1 },
+    "severity": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "descriptionTemplate": { "type": "string", "minLength": 1 },
+    "advancedDiagnosticConsent": { "type": "string", "minLength": 1 },
+    "require24X7Response": { "type": "boolean" },
+    "supportPlanId": { "type": "string", "minLength": 1 },
+    "quotaChangeRequestVersion": { "type": "string", "minLength": 1 },
+    "quotaChangeRequestSubType": { "type": "string", "minLength": 1 },
+    "quotaRequestType": { "type": "string", "minLength": 1 },
+    "newLimit": { "type": "integer", "minimum": 1 },
+    "defaults": {
+      "type": "object",
+      "description": "Default values for execution parameters when not specified at runtime.",
+      "properties": {
+        "delaySeconds": { "type": "integer", "minimum": 0, "description": "Seconds between requests." },
+        "requestsPerMinute": { "type": "integer", "minimum": 1, "maximum": 120, "description": "Rate limit for requests per minute." },
+        "maxRetries": { "type": "integer", "minimum": 0, "description": "Maximum retry attempts per request." },
+        "baseRetrySeconds": { "type": "integer", "minimum": 1, "description": "Base wait for exponential backoff." },
+        "newLimit": { "type": "integer", "minimum": 1, "description": "Default quota limit value." },
+        "quotaType": { "type": "string", "enum": ["LowPriority", "Dedicated", "Standard", "Spot"], "description": "Default quota type." }
+      },
+      "additionalProperties": false
     },
     "defaultRequests": {
       "type": "array",
