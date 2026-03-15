@@ -297,12 +297,12 @@ function Escape-SpecialCharacters {
         return $text
     }
 
-    return ($text `
-        -replace '\\', '\\\\' `
-        -replace '"', '\"' `
-        -replace "`t", '\t' `
-        -replace "`r", '\r' `
-        -replace "`n", '\n')
+    $escaped = $text.Replace('\', '\\')
+    $escaped = $escaped.Replace('"', '\"')
+    $escaped = $escaped.Replace("`t", '\t')
+    $escaped = $escaped.Replace("`r", '\r')
+    $escaped = $escaped.Replace("`n", '\n')
+    return $escaped
 }
 
 function Get-AzureRegionList {
