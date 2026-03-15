@@ -804,7 +804,9 @@ function New-RunStateSnapshot {
             interRequestDelaySeconds = $null
             throttleWaitSeconds = $null
             timeline = $null
+            timelineJson = $null
             attemptTimeline = @()
+            attemptTimelineJson = $null
         })
     }
 
@@ -1929,7 +1931,9 @@ function Invoke-AzureSupportBatchQuotaRun {
                     interRequestDelaySeconds = $null
                     throttleWaitSeconds = $null
                     timeline = $null
+                    timelineJson = $null
                     attemptTimeline = @()
+                    attemptTimelineJson = $null
                 }
             }
             else {
@@ -1949,8 +1953,14 @@ function Invoke-AzureSupportBatchQuotaRun {
                 if (-not ($stateEntry.PSObject.Properties['timeline'])) {
                     $stateEntry | Add-Member -NotePropertyName timeline -NotePropertyValue $null
                 }
+                if (-not ($stateEntry.PSObject.Properties['timelineJson'])) {
+                    $stateEntry | Add-Member -NotePropertyName timelineJson -NotePropertyValue $null
+                }
                 if (-not ($stateEntry.PSObject.Properties['attemptTimeline'])) {
                     $stateEntry | Add-Member -NotePropertyName attemptTimeline -NotePropertyValue @()
+                }
+                if (-not ($stateEntry.PSObject.Properties['attemptTimelineJson'])) {
+                    $stateEntry | Add-Member -NotePropertyName attemptTimelineJson -NotePropertyValue $null
                 }
                 if (-not ($stateEntry.PSObject.Properties['timelineStartUtc'])) {
                     $stateEntry | Add-Member -NotePropertyName timelineStartUtc -NotePropertyValue $null
@@ -2206,7 +2216,7 @@ function Invoke-AzureSupportBatchQuotaRun {
             $stateEntry.timelineEndUtc = $dryRunEnd.ToUniversalTime().ToString('o')
             $stateEntry.interRequestDelaySeconds = $effectiveDelaySeconds
             $stateEntry.throttleWaitSeconds = 0
-            $stateEntry.timeline = @{
+            $timelineSnapshot = [pscustomobject]@{
                 startUtc = $requestStartUtc
                 endUtc = $dryRunEnd.ToUniversalTime().ToString('o')
                 durationSeconds = $dryRunDuration
@@ -2215,7 +2225,25 @@ function Invoke-AzureSupportBatchQuotaRun {
                 attempts = $attemptTimeline
                 throttleWaitSeconds = 0
             }
-            $stateEntry.attemptTimeline = $attemptTimeline
+            $attemptTimelineSnapshot = @($attemptTimeline)
+            try {
+                $stateEntry.timeline = $timelineSnapshot
+                $stateEntry.timelineJson = $null
+            }
+            catch {
+                # Preserve timeline diagnostics even when the entry rejects object assignment.
+                $stateEntry.timeline = $null
+                $stateEntry.timelineJson = ConvertTo-Json -InputObject $timelineSnapshot -Depth 8 -Compress
+            }
+            try {
+                $stateEntry.attemptTimeline = $attemptTimelineSnapshot
+                $stateEntry.attemptTimelineJson = $null
+            }
+            catch {
+                # Preserve per-attempt diagnostics when object assignment is unavailable.
+                $stateEntry.attemptTimeline = @()
+                $stateEntry.attemptTimelineJson = ConvertTo-Json -InputObject $attemptTimelineSnapshot -Depth 8 -Compress
+            }
             $stateEntry.completedAt = $dryRunEnd.ToUniversalTime().ToString('o')
             $stateEntry.error = $null
             Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
@@ -2426,7 +2454,7 @@ function Invoke-AzureSupportBatchQuotaRun {
         $stateEntry.timelineEndUtc = $requestEnd.ToUniversalTime().ToString('o')
         $stateEntry.interRequestDelaySeconds = $effectiveDelaySeconds
         $stateEntry.throttleWaitSeconds = [math]::Round($throttleWaitSeconds, 2)
-        $attemptTimelineEntries = $attemptTimeline
+        $attemptTimelineEntries = @($attemptTimeline)
         $timelineSnapshot = [pscustomobject]@{
             startUtc = $requestStartUtc
             endUtc = $requestEnd.ToUniversalTime().ToString('o')
@@ -2439,12 +2467,22 @@ function Invoke-AzureSupportBatchQuotaRun {
         }
         try {
             $stateEntry.timeline = $timelineSnapshot
+            $stateEntry.timelineJson = $null
         }
         catch {
             # Some deserialized state entries can reject complex object assignment.
             $stateEntry.timeline = $null
+            $stateEntry.timelineJson = ConvertTo-Json -InputObject $timelineSnapshot -Depth 8 -Compress
         }
-        $stateEntry.attemptTimeline = $attemptTimelineEntries
+        try {
+            $stateEntry.attemptTimeline = $attemptTimelineEntries
+            $stateEntry.attemptTimelineJson = $null
+        }
+        catch {
+            # Preserve timeline detail even if the entry only accepts scalar values.
+            $stateEntry.attemptTimeline = @()
+            $stateEntry.attemptTimelineJson = ConvertTo-Json -InputObject $attemptTimelineEntries -Depth 8 -Compress
+        }
         $stateEntry.error = $failureMessage
         $stateEntry.completedAt = $requestEnd.ToUniversalTime().ToString('o')
         Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
@@ -2497,7 +2535,9 @@ function Invoke-AzureSupportBatchQuotaRun {
             interRequestDelaySeconds = $entry.interRequestDelaySeconds
             throttleWaitSeconds = $entry.throttleWaitSeconds
             timeline = $entry.timeline
+            timelineJson = if ($entry.PSObject.Properties['timelineJson']) { $entry.timelineJson } else { $null }
             attemptTimeline = $entry.attemptTimeline
+            attemptTimelineJson = if ($entry.PSObject.Properties['attemptTimelineJson']) { $entry.attemptTimelineJson } else { $null }
             error = $entry.error
         })
     }
@@ -2510,8 +2550,20 @@ function Invoke-AzureSupportBatchQuotaRun {
 
     if (-not [string]::IsNullOrWhiteSpace($ResultCsvPath)) {
         $resultsForCsv = foreach ($entry in $results) {
-            $timelineJson = if ($entry.timeline) { ConvertTo-Json -InputObject $entry.timeline -Depth 8 -Compress } else { "" }
-            $attemptTimelineJson = if ($entry.attemptTimeline) { ConvertTo-Json -InputObject $entry.attemptTimeline -Depth 8 -Compress } else { "[]" }
+            $timelineJson = if (-not [string]::IsNullOrWhiteSpace([string]$entry.timelineJson)) {
+                [string]$entry.timelineJson
+            } elseif ($entry.timeline) {
+                ConvertTo-Json -InputObject $entry.timeline -Depth 8 -Compress
+            } else {
+                ""
+            }
+            $attemptTimelineJson = if (-not [string]::IsNullOrWhiteSpace([string]$entry.attemptTimelineJson)) {
+                [string]$entry.attemptTimelineJson
+            } elseif ($entry.attemptTimeline) {
+                ConvertTo-Json -InputObject $entry.attemptTimeline -Depth 8 -Compress
+            } else {
+                "[]"
+            }
             [pscustomobject]@{
                 requestIndex = $entry.requestIndex
                 account = $entry.account
