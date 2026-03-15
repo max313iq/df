@@ -1897,15 +1897,14 @@ function Invoke-AzureSupportBatchQuotaRun {
             if ($null -eq $entry) {
                 continue
             }
-            $stateByKey["$($entry.subscription)|$($entry.account)|$($entry.region)"] = [pscustomobject]$entry
+            $stateByKey["$($entry.subscription)|$($entry.account)|$($entry.region)"] = $entry
         }
 
         $refreshedQueue = New-Object System.Collections.Generic.List[object]
         foreach ($request in $validatedRequests) {
             $lookup = "$($request.sub)|$($request.account)|$($request.region)"
-            $stateEntry = $stateByKey[$lookup]
-            $stateEntry = if ($null -ne $stateEntry) { [pscustomobject]$stateEntry } else { $null }
-            if ($null -eq $stateEntry) {
+            $persisted = $stateByKey[$lookup]
+            if ($null -eq $persisted) {
                 $stateEntry = [pscustomobject]@{
                     index = $request.Index
                     status = "Pending"
@@ -1918,7 +1917,7 @@ function Invoke-AzureSupportBatchQuotaRun {
                     proxyUrl = $null
                     ticket = $null
                     attempts = 0
-                retryCount = 0
+                    retryCount = 0
                     durationSeconds = $null
                     skipReason = $null
                     error = $null
@@ -1933,36 +1932,32 @@ function Invoke-AzureSupportBatchQuotaRun {
                 }
             }
             else {
-                $stateEntry.index = $request.Index
-                $stateEntry.subscription = $request.sub
-                $stateEntry.account = $request.account
-                $stateEntry.region = $request.region
-                $stateEntry.limit = $request.limit
-                $stateEntry.quotaType = $request.quotaType
-                $stateEntry.payload = $request.payload
-                if (-not ($stateEntry.PSObject.Properties['proxyUrl'])) {
-                    $stateEntry | Add-Member -NotePropertyName proxyUrl -NotePropertyValue $null
-                }
-                if (-not ($stateEntry.PSObject.Properties['retryCount'])) {
-                    $stateEntry | Add-Member -NotePropertyName retryCount -NotePropertyValue 0
-                }
-                if (-not ($stateEntry.PSObject.Properties['timeline'])) {
-                    $stateEntry | Add-Member -NotePropertyName timeline -NotePropertyValue $null
-                }
-                if (-not ($stateEntry.PSObject.Properties['attemptTimeline'])) {
-                    $stateEntry | Add-Member -NotePropertyName attemptTimeline -NotePropertyValue @()
-                }
-                if (-not ($stateEntry.PSObject.Properties['timelineStartUtc'])) {
-                    $stateEntry | Add-Member -NotePropertyName timelineStartUtc -NotePropertyValue $null
-                }
-                if (-not ($stateEntry.PSObject.Properties['timelineEndUtc'])) {
-                    $stateEntry | Add-Member -NotePropertyName timelineEndUtc -NotePropertyValue $null
-                }
-                if (-not ($stateEntry.PSObject.Properties['interRequestDelaySeconds'])) {
-                    $stateEntry | Add-Member -NotePropertyName interRequestDelaySeconds -NotePropertyValue $null
-                }
-                if (-not ($stateEntry.PSObject.Properties['throttleWaitSeconds'])) {
-                    $stateEntry | Add-Member -NotePropertyName throttleWaitSeconds -NotePropertyValue $null
+                $pTl = $null; try { $pTl = $persisted.timeline } catch {}
+                $pAtl = @(); try { $pAtl = $persisted.attemptTimeline } catch {}
+                $stateEntry = [pscustomobject]@{
+                    index                    = $request.Index
+                    status                   = if ($null -ne $persisted.status) { $persisted.status } else { "Pending" }
+                    subscription             = $request.sub
+                    account                  = $request.account
+                    region                   = $request.region
+                    limit                    = $request.limit
+                    quotaType                = $request.quotaType
+                    payload                  = $request.payload
+                    proxyUrl                 = $(try { $persisted.proxyUrl } catch { $null })
+                    ticket                   = $(try { $persisted.ticket } catch { $null })
+                    attempts                 = $(try { $persisted.attempts } catch { 0 })
+                    retryCount               = $(try { $persisted.retryCount } catch { 0 })
+                    durationSeconds          = $(try { $persisted.durationSeconds } catch { $null })
+                    skipReason               = $(try { $persisted.skipReason } catch { $null })
+                    error                    = $(try { $persisted.error } catch { $null })
+                    startedAt                = $(try { $persisted.startedAt } catch { $null })
+                    completedAt              = $(try { $persisted.completedAt } catch { $null })
+                    timelineStartUtc         = $(try { $persisted.timelineStartUtc } catch { $null })
+                    timelineEndUtc           = $(try { $persisted.timelineEndUtc } catch { $null })
+                    interRequestDelaySeconds = $(try { $persisted.interRequestDelaySeconds } catch { $null })
+                    throttleWaitSeconds      = $(try { $persisted.throttleWaitSeconds } catch { $null })
+                    timeline                 = $pTl
+                    attemptTimeline          = if ($null -ne $pAtl) { $pAtl } else { @() }
                 }
             }
             $refreshedQueue.Add($stateEntry) | Out-Null
@@ -2206,7 +2201,7 @@ function Invoke-AzureSupportBatchQuotaRun {
             $stateEntry.timelineEndUtc = $dryRunEnd.ToUniversalTime().ToString('o')
             $stateEntry.interRequestDelaySeconds = $effectiveDelaySeconds
             $stateEntry.throttleWaitSeconds = 0
-            $stateEntry.timeline = @{
+            $dryRunTimeline = @{
                 startUtc = $requestStartUtc
                 endUtc = $dryRunEnd.ToUniversalTime().ToString('o')
                 durationSeconds = $dryRunDuration
@@ -2215,7 +2210,26 @@ function Invoke-AzureSupportBatchQuotaRun {
                 attempts = $attemptTimeline
                 throttleWaitSeconds = 0
             }
-            $stateEntry.attemptTimeline = $attemptTimeline
+            try {
+                $stateEntry.timeline = $dryRunTimeline
+            }
+            catch {
+                $stateEntry.timeline = $null
+                if (-not ($stateEntry.PSObject.Properties['timelineJson'])) {
+                    $stateEntry | Add-Member -NotePropertyName timelineJson -NotePropertyValue $null
+                }
+                try { $stateEntry.timelineJson = ($dryRunTimeline | ConvertTo-Json -Depth 10 -Compress) } catch {}
+            }
+            try {
+                $stateEntry.attemptTimeline = $attemptTimeline
+            }
+            catch {
+                $stateEntry.attemptTimeline = @()
+                if (-not ($stateEntry.PSObject.Properties['attemptTimelineJson'])) {
+                    $stateEntry | Add-Member -NotePropertyName attemptTimelineJson -NotePropertyValue $null
+                }
+                try { $stateEntry.attemptTimelineJson = ($attemptTimeline | ConvertTo-Json -Depth 10 -Compress) } catch {}
+            }
             $stateEntry.completedAt = $dryRunEnd.ToUniversalTime().ToString('o')
             $stateEntry.error = $null
             Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
@@ -2441,10 +2455,22 @@ function Invoke-AzureSupportBatchQuotaRun {
             $stateEntry.timeline = $timelineSnapshot
         }
         catch {
-            # Some deserialized state entries can reject complex object assignment.
             $stateEntry.timeline = $null
+            if (-not ($stateEntry.PSObject.Properties['timelineJson'])) {
+                $stateEntry | Add-Member -NotePropertyName timelineJson -NotePropertyValue $null
+            }
+            try { $stateEntry.timelineJson = ($timelineSnapshot | ConvertTo-Json -Depth 10 -Compress) } catch {}
         }
-        $stateEntry.attemptTimeline = $attemptTimelineEntries
+        try {
+            $stateEntry.attemptTimeline = $attemptTimelineEntries
+        }
+        catch {
+            $stateEntry.attemptTimeline = @()
+            if (-not ($stateEntry.PSObject.Properties['attemptTimelineJson'])) {
+                $stateEntry | Add-Member -NotePropertyName attemptTimelineJson -NotePropertyValue $null
+            }
+            try { $stateEntry.attemptTimelineJson = ($attemptTimelineEntries | ConvertTo-Json -Depth 10 -Compress) } catch {}
+        }
         $stateEntry.error = $failureMessage
         $stateEntry.completedAt = $requestEnd.ToUniversalTime().ToString('o')
         Write-RunStateSnapshot -Path $RunStatePath -RunState $runState
