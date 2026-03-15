@@ -854,6 +854,31 @@ function Write-RunStateSnapshot {
     Write-SafeJsonFile -Path $Path -InputObject $RunState -Depth 20
 }
 
+function Convert-ToWritableRunStateEntry {
+    param([Parameter(Mandatory = $true)]$Entry)
+
+    $propertyBag = [ordered]@{}
+    if ($Entry -is [System.Collections.IDictionary]) {
+        foreach ($key in $Entry.Keys) {
+            $propertyBag[[string]$key] = $Entry[$key]
+        }
+        return [pscustomobject]$propertyBag
+    }
+
+    if ($null -eq $Entry.PSObject) {
+        return [pscustomobject]$propertyBag
+    }
+
+    foreach ($property in @($Entry.PSObject.Properties)) {
+        if (-not $property.IsGettable) {
+            continue
+        }
+        $propertyBag[$property.Name] = $property.Value
+    }
+
+    return [pscustomobject]$propertyBag
+}
+
 function Get-PendingRequestStateItems {
     param(
         [Parameter(Mandatory = $true)]$RunState,
@@ -1897,14 +1922,13 @@ function Invoke-AzureSupportBatchQuotaRun {
             if ($null -eq $entry) {
                 continue
             }
-            $stateByKey["$($entry.subscription)|$($entry.account)|$($entry.region)"] = [pscustomobject]$entry
+            $stateByKey["$($entry.subscription)|$($entry.account)|$($entry.region)"] = Convert-ToWritableRunStateEntry -Entry $entry
         }
 
         $refreshedQueue = New-Object System.Collections.Generic.List[object]
         foreach ($request in $validatedRequests) {
             $lookup = "$($request.sub)|$($request.account)|$($request.region)"
             $stateEntry = $stateByKey[$lookup]
-            $stateEntry = if ($null -ne $stateEntry) { [pscustomobject]$stateEntry } else { $null }
             if ($null -eq $stateEntry) {
                 $stateEntry = [pscustomobject]@{
                     index = $request.Index
@@ -2437,13 +2461,7 @@ function Invoke-AzureSupportBatchQuotaRun {
             throttleWaitSeconds = [math]::Round($throttleWaitSeconds, 2)
             attempts = $attemptTimelineEntries
         }
-        try {
-            $stateEntry.timeline = $timelineSnapshot
-        }
-        catch {
-            # Some deserialized state entries can reject complex object assignment.
-            $stateEntry.timeline = $null
-        }
+        $stateEntry.timeline = $timelineSnapshot
         $stateEntry.attemptTimeline = $attemptTimelineEntries
         $stateEntry.error = $failureMessage
         $stateEntry.completedAt = $requestEnd.ToUniversalTime().ToString('o')

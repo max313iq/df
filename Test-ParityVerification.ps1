@@ -427,6 +427,212 @@ if (Test-Path -LiteralPath $resumeProfilePath) {
 }
 
 # -------------------------------------------------------------------
+Write-Host "`n=== Run State Timeline Resume ===" -ForegroundColor Cyan
+# -------------------------------------------------------------------
+
+class LegacyRunStateEntryForParity {
+    [int]$index
+    [string]$status
+    [string]$subscription
+    [string]$account
+    [string]$region
+    [int]$limit
+    [string]$quotaType
+    [object]$payload
+    [string]$proxyUrl
+    [string]$ticket
+    [int]$attempts
+    [int]$retryCount
+    [double]$durationSeconds
+    [string]$skipReason
+    [string]$error
+    [string]$startedAt
+    [string]$completedAt
+    [string]$timelineStartUtc
+    [string]$timelineEndUtc
+    [double]$interRequestDelaySeconds
+    [double]$throttleWaitSeconds
+    [string]$timeline
+    [object[]]$attemptTimeline
+}
+
+$legacyEntry = [LegacyRunStateEntryForParity]::new()
+$legacyEntry.index = 1
+$legacyEntry.status = 'Failed'
+$legacyEntry.subscription = 'sub-legacy'
+$legacyEntry.account = 'acct-legacy'
+$legacyEntry.region = 'eastus'
+$legacyEntry.limit = 500
+$legacyEntry.quotaType = 'LowPriority'
+$legacyEntry.payload = $null
+$legacyEntry.proxyUrl = ''
+$legacyEntry.ticket = 'legacy-ticket'
+$legacyEntry.attempts = 1
+$legacyEntry.retryCount = 0
+$legacyEntry.durationSeconds = 3.14
+$legacyEntry.skipReason = ''
+$legacyEntry.error = 'legacy failure'
+$legacyEntry.startedAt = '2026-01-01T00:00:00Z'
+$legacyEntry.completedAt = '2026-01-01T00:00:03Z'
+$legacyEntry.timelineStartUtc = '2026-01-01T00:00:00Z'
+$legacyEntry.timelineEndUtc = '2026-01-01T00:00:03Z'
+$legacyEntry.interRequestDelaySeconds = 0
+$legacyEntry.throttleWaitSeconds = 0
+$legacyEntry.timeline = 'legacy-string-value'
+$legacyEntry.attemptTimeline = @()
+
+try {
+    $normalizedEntry = & (Get-Module AzureSupport.TicketEngine) {
+        param($Entry)
+        Convert-ToWritableRunStateEntry -Entry $Entry
+    } $legacyEntry
+    Write-TestResult -Name 'Run state normalization returns PSCustomObject' -Passed ($normalizedEntry -is [pscustomobject])
+
+    try {
+        $normalizedEntry.timeline = [pscustomobject]@{
+            attempts = @([pscustomobject]@{ attempt = 1; status = 'DryRun' })
+        }
+        Write-TestResult -Name 'Run state normalization allows structured timeline assignment' -Passed (@($normalizedEntry.timeline.attempts).Count -eq 1)
+    }
+    catch {
+        Write-TestResult -Name 'Run state normalization allows structured timeline assignment' -Passed $false -Detail $_.Exception.Message
+    }
+}
+catch {
+    Write-TestResult -Name 'Run state normalization returns PSCustomObject' -Passed $false -Detail $_.Exception.Message
+}
+
+$resumeTimelineStatePath = Join-Path $testResultDir 'resume-timeline-run-state.json'
+$resumeTimelineResultPath = Join-Path $testResultDir 'resume-timeline-results.json'
+$resumeTimelineRequest = [pscustomobject]@{
+    sub = 'sub-resume'
+    account = 'acct-resume'
+    region = 'eastus'
+    limit = 500
+    quotaType = 'LowPriority'
+}
+
+try {
+    $resumeFingerprint = & (Get-Module AzureSupport.TicketEngine) {
+        param($Requests)
+        Get-RequestFingerprint -Requests $Requests
+    } @($resumeTimelineRequest)
+
+    $legacyResumeState = [ordered]@{
+        runId = 'resume-timeline-test'
+        status = 'Failed'
+        requestedAction = 'Run'
+        createdAt = '2026-01-01T00:00:00Z'
+        updatedAt = '2026-01-01T00:00:03Z'
+        lastError = 'legacy failure'
+        stopOnFirstFailure = $false
+        requestFingerprint = $resumeFingerprint
+        runProfile = ''
+        requestQueue = @(
+            [ordered]@{
+                index = 1
+                status = 'Failed'
+                subscription = 'sub-resume'
+                account = 'acct-resume'
+                region = 'eastus'
+                limit = 500
+                quotaType = 'LowPriority'
+                payload = $null
+                proxyUrl = ''
+                ticket = 'legacy-ticket'
+                attempts = 2
+                retryCount = 1
+                durationSeconds = 8.5
+                skipReason = $null
+                error = 'legacy failure'
+                startedAt = '2026-01-01T00:00:00Z'
+                completedAt = '2026-01-01T00:00:08Z'
+                timelineStartUtc = '2026-01-01T00:00:00Z'
+                timelineEndUtc = '2026-01-01T00:00:08Z'
+                interRequestDelaySeconds = 0
+                throttleWaitSeconds = 0
+                timeline = [ordered]@{
+                    startUtc = '2026-01-01T00:00:00Z'
+                    endUtc = '2026-01-01T00:00:08Z'
+                    durationSeconds = 8.5
+                    interRequestDelaySeconds = 0
+                    maxRetries = 1
+                    retryCount = 1
+                    throttleWaitSeconds = 0
+                    attempts = @(
+                        [ordered]@{
+                            attempt = 1
+                            status = 'Failed'
+                            startedAtUtc = '2026-01-01T00:00:00Z'
+                            endedAtUtc = '2026-01-01T00:00:08Z'
+                            durationSeconds = 8.5
+                            statusCode = 500
+                            retryAfterSeconds = 0
+                            sleepSeconds = 0
+                            error = 'legacy failure'
+                            reason = 'legacy request'
+                        }
+                    )
+                }
+                attemptTimeline = @(
+                    [ordered]@{
+                        attempt = 1
+                        status = 'Failed'
+                        startedAtUtc = '2026-01-01T00:00:00Z'
+                        endedAtUtc = '2026-01-01T00:00:08Z'
+                        durationSeconds = 8.5
+                        statusCode = 500
+                        retryAfterSeconds = 0
+                        sleepSeconds = 0
+                        error = 'legacy failure'
+                        reason = 'legacy request'
+                    }
+                )
+            }
+        )
+        totalRequests = 1
+        completedRequests = 0
+    }
+
+    $legacyResumeState | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $resumeTimelineStatePath -Encoding UTF8
+
+    $resumeResults = @(Invoke-AzureSupportBatchQuotaRun `
+        -Requests @($resumeTimelineRequest) `
+        -Token 'test-token' `
+        -TryAzCliToken $false `
+        -DryRun `
+        -DelaySeconds 0 `
+        -RequestsPerMinute 60 `
+        -MaxRetries 2 `
+        -BaseRetrySeconds 1 `
+        -TicketTemplatePath $templatePath `
+        -RunStatePath $resumeTimelineStatePath `
+        -ResumeFromState $true `
+        -RetryFailedRequests $true `
+        -ResultJsonPath $resumeTimelineResultPath)
+
+    Write-TestResult -Name 'Resume dry-run returns one result' -Passed ($resumeResults.Count -eq 1)
+    Write-TestResult -Name 'Resume dry-run marks request DryRun' -Passed ($resumeResults.Count -eq 1 -and $resumeResults[0].status -eq 'DryRun')
+
+    $savedResumeState = Get-Content -LiteralPath $resumeTimelineStatePath -Raw | ConvertFrom-Json
+    $savedResumeEntry = @($savedResumeState.requestQueue)[0]
+    Write-TestResult -Name 'Resume dry-run persists structured timeline in run state' -Passed ($null -ne $savedResumeEntry.timeline -and @($savedResumeEntry.timeline.attempts).Count -eq 1)
+    Write-TestResult -Name 'Resume dry-run persists attempt timeline in run state' -Passed (@($savedResumeEntry.attemptTimeline).Count -eq 1)
+
+    $savedResumeResults = @(Get-Content -LiteralPath $resumeTimelineResultPath -Raw | ConvertFrom-Json)
+    Write-TestResult -Name 'Resume dry-run saves structured timeline in result JSON' -Passed ($savedResumeResults.Count -eq 1 -and $null -ne $savedResumeResults[0].timeline -and @($savedResumeResults[0].attemptTimeline).Count -eq 1)
+}
+catch {
+    Write-TestResult -Name 'Run state timeline resume regression' -Passed $false -Detail $_.Exception.Message
+}
+
+foreach ($artifact in @($resumeTimelineStatePath, $resumeTimelineResultPath)) {
+    if (Test-Path -LiteralPath $artifact) {
+        Remove-Item -LiteralPath $artifact -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# -------------------------------------------------------------------
 Write-Host "`n=== Summary ===" -ForegroundColor Cyan
 # -------------------------------------------------------------------
 
