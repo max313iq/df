@@ -166,6 +166,11 @@ function Convert-ToBoolValue {
 }
 
 function Remove-EmptyParameters {
+    <#
+    .SYNOPSIS
+        Strips null and whitespace-only values from a parameter hashtable,
+        preserving Token even when empty (required for downstream checks).
+    #>
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Parameters
@@ -190,6 +195,10 @@ function Remove-EmptyParameters {
 }
 
 function Get-SafeProfileProperty {
+    <#
+    .SYNOPSIS
+        Script-scope wrapper that delegates to the module's Get-ObjectMemberValue.
+    #>
     param(
         [Parameter(Mandatory = $false)]$Object,
         [Parameter(Mandatory = $true)][string]$Name
@@ -498,6 +507,10 @@ function Get-AzureSupportRequestKey {
 }
 
 function New-AzureSupportRequestState {
+    <#
+    .SYNOPSIS
+        Creates a fresh request-level state entry for the run-state queue.
+    #>
     param([Parameter(Mandatory = $true)]$Request)
 
     return [ordered]@{
@@ -517,6 +530,10 @@ function New-AzureSupportRequestState {
 }
 
 function New-AzureSupportRunState {
+    <#
+    .SYNOPSIS
+        Initializes a new run-state object from a set of validated requests.
+    #>
     param([Parameter(Mandatory = $true)][array]$ValidatedRequests)
 
     $entries = New-Object System.Collections.Generic.List[object]
@@ -535,6 +552,10 @@ function New-AzureSupportRunState {
 }
 
 function Get-AzureSupportRunState {
+    <#
+    .SYNOPSIS
+        Reads and deserializes a run-state JSON file, or returns $null if missing/empty.
+    #>
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path $Path)) {
@@ -555,6 +576,10 @@ function Get-AzureSupportRunState {
 }
 
 function Save-AzureSupportRunState {
+    <#
+    .SYNOPSIS
+        Serializes and persists the run-state to a JSON file, updating the lastUpdatedAt timestamp.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)]$State
@@ -572,6 +597,10 @@ function Save-AzureSupportRunState {
 }
 
 function Write-Log {
+    <#
+    .SYNOPSIS
+        Writes a timestamped, redacted log message to the console at the given severity.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Message,
         [Parameter(Mandatory = $false)][ValidateSet('INFO', 'WARN', 'ERROR')][string]$Level = 'INFO'
@@ -587,6 +616,10 @@ function Write-Log {
 }
 
 function Convert-ToRedactedLogMessage {
+    <#
+    .SYNOPSIS
+        Strips bearer tokens and secret fields from a log message to prevent credential leakage.
+    #>
     param([Parameter(Mandatory = $true)][string]$Message)
 
     if ([string]::IsNullOrWhiteSpace($Message)) { return $Message }
@@ -598,6 +631,10 @@ function Convert-ToRedactedLogMessage {
 }
 
 function Ensure-RunArtifactFolder {
+    <#
+    .SYNOPSIS
+        Creates the parent directory of the given path if it does not exist.
+    #>
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $parent = Split-Path -Parent $Path
@@ -610,6 +647,10 @@ function Ensure-RunArtifactFolder {
 }
 
 function Read-SafeJsonFile {
+    <#
+    .SYNOPSIS
+        Reads and deserializes a JSON file, returning $null on any failure.
+    #>
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
@@ -633,6 +674,10 @@ function Read-SafeJsonFile {
 }
 
 function Write-SafeJsonFile {
+    <#
+    .SYNOPSIS
+        Atomically writes an object as JSON, using a temp file and rename to prevent corruption.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)]$InputObject,
@@ -651,6 +696,10 @@ function Write-SafeJsonFile {
 }
 
 function Get-ResolvedArtifactPath {
+    <#
+    .SYNOPSIS
+        Returns the requested path when non-empty, otherwise falls back to $PSScriptRoot/$FallbackFileName.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$RequestedPath,
         [Parameter(Mandatory = $true)][string]$FallbackFileName
@@ -678,6 +727,10 @@ function Get-TicketTemplate {
 }
 
 function Get-RequestFingerprint {
+    <#
+    .SYNOPSIS
+        Computes a deterministic SHA-256 fingerprint over a sorted canonical representation of the request set.
+    #>
     param([Parameter(Mandatory = $true)][array]$Requests)
 
     if (-not $Requests -or $Requests.Count -eq 0) {
@@ -703,6 +756,10 @@ function Get-RequestFingerprint {
 }
 
 function New-RunProfileSnapshot {
+    <#
+    .SYNOPSIS
+        Creates a point-in-time run profile snapshot from the current execution settings.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$TokenMode,
         [Parameter(Mandatory = $true)][int]$DelaySeconds,
@@ -761,6 +818,10 @@ function New-RunProfileSnapshot {
 }
 
 function New-RunStateSnapshot {
+    <#
+    .SYNOPSIS
+        Creates a fresh run-state snapshot with a queue of pending requests indexed for tracking.
+    #>
     param(
         [Parameter(Mandatory = $true)][array]$Requests,
         [Parameter(Mandatory = $true)][string]$RequestFingerprint,
@@ -816,11 +877,19 @@ function New-RunStateSnapshot {
 }
 
 function Read-RunStateSnapshot {
+    <#
+    .SYNOPSIS
+        Loads a persisted run-state snapshot from disk (delegates to Read-SafeJsonFile).
+    #>
     param([Parameter(Mandatory = $true)][string]$Path)
     return Read-SafeJsonFile -Path $Path
 }
 
 function Update-RunStateCounters {
+    <#
+    .SYNOPSIS
+        Recalculates completedRequests from the current queue statuses.
+    #>
     param($RunState)
 
     if ($null -eq $RunState -or -not $RunState.requestQueue) {
@@ -831,6 +900,10 @@ function Update-RunStateCounters {
 }
 
 function Write-RunStateSnapshot {
+    <#
+    .SYNOPSIS
+        Updates counters, sets the updatedAt timestamp, and writes the run state to disk.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)]$RunState
@@ -846,6 +919,12 @@ function Write-RunStateSnapshot {
 }
 
 function Get-PendingRequestStateItems {
+    <#
+    .SYNOPSIS
+        Returns the subset of run-state queue items that still need processing.
+        When RetryFailedRequests is true, only 'Failed' items are returned;
+        otherwise all non-completed items are returned.
+    #>
     param(
         [Parameter(Mandatory = $true)]$RunState,
         [Parameter(Mandatory = $false)][bool]$RetryFailedRequests = $false
@@ -1053,6 +1132,10 @@ function Test-RunPreflight {
 }
 
 function Resolve-TemplateTokens {
+    <#
+    .SYNOPSIS
+        Replaces {key} placeholders in a template string with values from a token hashtable.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Template,
         [Parameter(Mandatory = $false)]$Tokens
@@ -1070,6 +1153,11 @@ function Resolve-TemplateTokens {
 }
 
 function Get-EffectiveInterRequestDelaySeconds {
+    <#
+    .SYNOPSIS
+        Returns the effective delay between API requests, taking the larger of the
+        configured delay and the rate-based delay derived from RequestsPerMinute.
+    #>
     param(
         [Parameter(Mandatory = $true)][int]$ConfiguredDelaySeconds,
         [Parameter(Mandatory = $true)][int]$ConfiguredRequestsPerMinute
@@ -1080,6 +1168,10 @@ function Get-EffectiveInterRequestDelaySeconds {
 }
 
 function Get-ErrorResponseBody {
+    <#
+    .SYNOPSIS
+        Extracts the HTTP response body from a REST error record, if available.
+    #>
     param([Parameter(Mandatory = $true)]$ErrorRecord)
 
     if ($ErrorRecord.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($ErrorRecord.ErrorDetails.Message)) {
@@ -1107,6 +1199,10 @@ function Get-ErrorResponseBody {
 }
 
 function Get-ExceptionResponse {
+    <#
+    .SYNOPSIS
+        Returns the Response object from an exception's inner exception, if present.
+    #>
     param([Parameter(Mandatory = $true)]$ErrorRecord)
 
     if ($null -eq $ErrorRecord -or $null -eq $ErrorRecord.Exception) {
@@ -1122,6 +1218,10 @@ function Get-ExceptionResponse {
 }
 
 function Get-StatusCode {
+    <#
+    .SYNOPSIS
+        Extracts the HTTP status code from an error record's response.
+    #>
     param([Parameter(Mandatory = $true)]$ErrorRecord)
 
     try {
@@ -1133,6 +1233,10 @@ function Get-StatusCode {
 }
 
 function Is-ThrottledResponse {
+    <#
+    .SYNOPSIS
+        Determines whether an HTTP response indicates rate-limiting (HTTP 429 or throttle keywords).
+    #>
     param(
         [Parameter(Mandatory = $false)]$StatusCode,
         [Parameter(Mandatory = $false)][string]$ResponseBody,
@@ -1150,6 +1254,10 @@ function Is-ThrottledResponse {
 }
 
 function Get-RetryAfterSeconds {
+    <#
+    .SYNOPSIS
+        Parses the Retry-After header from an error response, returning seconds as an integer.
+    #>
     param([Parameter(Mandatory = $true)]$ErrorRecord)
 
     try {
@@ -1175,17 +1283,23 @@ function Get-RetryAfterSeconds {
 }
 
 function Invoke-AzCommand {
-    param([Parameter(Mandatory = $true)][string[]]$Args)
+    <#
+    .SYNOPSIS
+        Executes an Azure CLI command and returns its stdout as a string.
+    .PARAMETER CommandArgs
+        Array of arguments to pass to 'az'.
+    #>
+    param([Parameter(Mandatory = $true)][string[]]$CommandArgs)
 
     $azPath = Get-Command az -ErrorAction SilentlyContinue
     if (-not $azPath) {
         throw "Azure CLI (az) was not found in PATH."
     }
 
-    $output = & az @Args 2>&1
+    $output = & az @CommandArgs 2>&1
 
     if ($azPath.CommandType -eq "Application" -and $LASTEXITCODE -ne 0) {
-        throw "az $($Args -join ' ') failed: $output"
+        throw "az $($CommandArgs -join ' ') failed: $output"
     }
 
     if ($output -is [array]) {
@@ -1195,6 +1309,10 @@ function Invoke-AzCommand {
 }
 
 function Invoke-AzDeviceCodeLogin {
+    <#
+    .SYNOPSIS
+        Triggers Azure CLI device-code login, optionally scoped to a specific tenant.
+    #>
     param([Parameter(Mandatory = $false)][string]$TenantId)
 
     Write-Host "Running Azure device-code login..."
@@ -1206,7 +1324,7 @@ function Invoke-AzDeviceCodeLogin {
         Write-Host "Tenant-scoped login requested for tenant: $TenantId"
     }
 
-    $output = Invoke-AzCommand -Args $loginArgs
+    $output = Invoke-AzCommand -CommandArgs $loginArgs
     if ($output) {
         foreach ($line in ($output -split "`r?`n")) {
             if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -1217,6 +1335,10 @@ function Invoke-AzDeviceCodeLogin {
 }
 
 function Get-AccessTokenFromAzCli {
+    <#
+    .SYNOPSIS
+        Acquires a management API access token via Azure CLI for a given subscription/tenant.
+    #>
     param(
         [Parameter(Mandatory = $false)][string]$SubscriptionId,
         [Parameter(Mandatory = $false)][string]$TenantId,
@@ -1224,16 +1346,16 @@ function Get-AccessTokenFromAzCli {
     )
 
     try {
-        $args = @("account", "get-access-token", "--resource", "https://management.azure.com/", "-o", "json")
+        $tokenArgs = @("account", "get-access-token", "--resource", "https://management.azure.com/", "-o", "json")
         if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
-            $args += @("--subscription", $SubscriptionId)
+            $tokenArgs += @("--subscription", $SubscriptionId)
         }
         if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-            $args += @("--tenant", $TenantId)
+            $tokenArgs += @("--tenant", $TenantId)
         }
 
-        $raw = Invoke-AzCommand -Args $args
-    $tokenObj = ConvertFrom-Json -InputObject $raw
+        $raw = Invoke-AzCommand -CommandArgs $tokenArgs
+        $tokenObj = ConvertFrom-Json -InputObject $raw
         if ($null -eq $tokenObj -or [string]::IsNullOrWhiteSpace($tokenObj.accessToken)) {
             if ($ThrowOnError) { throw "Azure CLI returned no access token." }
             return $null
@@ -1250,9 +1372,13 @@ function Get-AccessTokenFromAzCli {
 }
 
 function Get-SubscriptionTenantMapFromAzCli {
+    <#
+    .SYNOPSIS
+        Builds a subscription-to-tenant hashtable from Azure CLI account list.
+    #>
     param([string[]]$FilterSubscriptionIds)
 
-    $raw = Invoke-AzCommand -Args @("account", "list", "--all", "-o", "json")
+    $raw = Invoke-AzCommand -CommandArgs @("account", "list", "--all", "-o", "json")
     $accounts = ConvertFrom-Json -InputObject $raw
 
     $map = @{}
@@ -1272,10 +1398,14 @@ function Get-SubscriptionTenantMapFromAzCli {
 }
 
 function Get-SubscriptionTenantIdFromAzCli {
+    <#
+    .SYNOPSIS
+        Resolves the tenant ID for a single subscription via 'az account show'.
+    #>
     param([Parameter(Mandatory = $true)][string]$SubscriptionId)
 
     try {
-        $raw = Invoke-AzCommand -Args @("account", "show", "--subscription", $SubscriptionId, "-o", "json")
+        $raw = Invoke-AzCommand -CommandArgs @("account", "show", "--subscription", $SubscriptionId, "-o", "json")
         $acct = ConvertFrom-Json -InputObject $raw
         if ($null -ne $acct -and -not [string]::IsNullOrWhiteSpace($acct.tenantId)) {
             return $acct.tenantId
@@ -1289,6 +1419,10 @@ function Get-SubscriptionTenantIdFromAzCli {
 }
 
 function Get-TenantIdFromUnauthorizedBody {
+    <#
+    .SYNOPSIS
+        Extracts a tenant GUID from an Azure 401 response body using known STS URL patterns.
+    #>
     param([Parameter(Mandatory = $false)][string]$ResponseBody)
 
     if ([string]::IsNullOrWhiteSpace($ResponseBody)) {
@@ -1313,6 +1447,11 @@ function Get-TenantIdFromUnauthorizedBody {
 }
 
 function Resolve-AzCliTokenForSubscription {
+    <#
+    .SYNOPSIS
+        Attempts to acquire a bearer token for a subscription, trying known tenant,
+        fallback lookup, and optional device-code login.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$SubscriptionId,
         [Parameter(Mandatory = $false)][string]$KnownTenantId,
@@ -1373,13 +1512,17 @@ function Resolve-AzCliTokenForSubscription {
 }
 
 function Get-SubscriptionsFromAzCli {
+    <#
+    .SYNOPSIS
+        Returns subscription IDs—either the caller-supplied list or all subscriptions from 'az account list'.
+    #>
     param([string[]]$RequestedIds)
 
     if ($RequestedIds -and $RequestedIds.Count -gt 0) {
         return $RequestedIds
     }
 
-    $raw = Invoke-AzCommand -Args @("account", "list", "--query", "[].id", "-o", "tsv")
+    $raw = Invoke-AzCommand -CommandArgs @("account", "list", "--query", "[].id", "-o", "tsv")
     $subs = @()
     foreach ($line in ($raw -split "`r?`n")) {
         if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -1390,6 +1533,11 @@ function Get-SubscriptionsFromAzCli {
 }
 
 function Get-BatchRequestsFromAzCli {
+    <#
+    .SYNOPSIS
+        Discovers Batch accounts across the supplied subscriptions via Azure CLI
+        and returns per-account-per-region request objects.
+    #>
     param([string[]]$SubscriptionList)
 
     function Normalize-JsonCollection {
@@ -1409,7 +1557,7 @@ function Get-BatchRequestsFromAzCli {
 
     $discovered = @()
     foreach ($sub in $SubscriptionList) {
-        $raw = Invoke-AzCommand -Args @("batch", "account", "list", "--subscription", $sub, "-o", "json")
+        $raw = Invoke-AzCommand -CommandArgs @("batch", "account", "list", "--subscription", $sub, "-o", "json")
         $parsed = ConvertFrom-Json -InputObject $raw
         $accounts = Normalize-JsonCollection -InputObject $parsed
 
@@ -1461,6 +1609,10 @@ function Get-BatchRequestsFromAzCli {
 }
 
 function Expand-AccountRegionRequests {
+    <#
+    .SYNOPSIS
+        Explodes multi-region request entries into one request per region, normalizing field names.
+    #>
     param(
         [Parameter(Mandatory = $true)][object[]]$Requests
     )
@@ -1541,6 +1693,11 @@ function Expand-AccountRegionRequests {
 }
 
 function Resolve-RequestFieldValue {
+    <#
+    .SYNOPSIS
+        Resolves a field value from a request object by trying multiple candidate property names
+        (supports both hashtables and PSCustomObjects).
+    #>
     param(
         [Parameter(Mandatory = $true)]$Request,
         [Parameter(Mandatory = $true)][string[]]$FieldNames
@@ -1728,22 +1885,60 @@ function Invoke-AzureSupportBatchQuotaRun {
     if ($BaseRetrySeconds -lt 1) { throw "BaseRetrySeconds must be >= 1." }
     if (-not $Requests -or $Requests.Count -eq 0) { throw "No quota requests were provided." }
 
-    $effectiveContactDetails = $null
-    $effectiveProblemClassificationId = $null
-    $effectiveServiceId = $null
-    $effectiveSeverity = $null
-    $effectiveTitle = $null
-    $effectiveDescriptionTemplate = $null
-    $effectiveAdvancedDiagnosticConsent = $null
-    $effectiveRequire24X7Response = $null
-    $effectiveSupportPlanId = $null
-    $effectiveQuotaChangeRequestVersion = $null
-    $effectiveQuotaRequestType = $null
-    $effectiveNewLimit = $null
-    $effectiveQuotaChangeRequestSubType = $null
-    $effectiveAcceptLanguage = $null
-
     $RunStatePath = Get-ResolvedArtifactPath -RequestedPath $RunStatePath -FallbackFileName "azure-support-ticket-run-state.json"
+
+    $resolvedTicketTemplatePath = AzureSupport.TicketEngine\Get-TicketTemplatePath -TicketTemplatePath $TicketTemplatePath -RootPath $PSScriptRoot
+    $ticketTemplate = AzureSupport.TicketEngine\Get-TicketTemplate -Path $resolvedTicketTemplatePath
+    if (-not $ticketTemplate.contactDetails) {
+        throw "Ticket template '$resolvedTicketTemplatePath' is missing required contactDetails."
+    }
+
+    $effectiveContactDetails = AzureSupport.TicketEngine\Resolve-EffectiveContactDetails `
+        -TemplateContact $ticketTemplate.contactDetails `
+        -BoundParameters $PSBoundParameters `
+        -ContactFirstName $ContactFirstName `
+        -ContactLastName $ContactLastName `
+        -PreferredContactMethod $PreferredContactMethod `
+        -PrimaryEmailAddress $PrimaryEmailAddress `
+        -PreferredTimeZone $PreferredTimeZone `
+        -Country $Country `
+        -PreferredSupportLanguage $PreferredSupportLanguage `
+        -AdditionalEmailAddresses $AdditionalEmailAddresses
+
+    $effectiveTemplateValues = AzureSupport.TicketEngine\Resolve-EffectiveTemplateValues `
+        -TicketTemplate $ticketTemplate `
+        -BoundParameters $PSBoundParameters `
+        -AcceptLanguage $AcceptLanguage `
+        -ProblemClassificationId $ProblemClassificationId `
+        -ServiceId $ServiceId `
+        -Severity $Severity `
+        -Title $Title `
+        -DescriptionTemplate $DescriptionTemplate `
+        -AdvancedDiagnosticConsent $AdvancedDiagnosticConsent `
+        -Require24X7Response $Require24X7Response `
+        -SupportPlanId $SupportPlanId `
+        -QuotaChangeRequestVersion $QuotaChangeRequestVersion `
+        -QuotaChangeRequestSubType $QuotaChangeRequestSubType `
+        -QuotaRequestType $QuotaRequestType `
+        -NewLimit $NewLimit
+
+    $effectiveAcceptLanguage = $effectiveTemplateValues.AcceptLanguage
+    $effectiveProblemClassificationId = $effectiveTemplateValues.ProblemClassificationId
+    $effectiveServiceId = $effectiveTemplateValues.ServiceId
+    $effectiveSeverity = $effectiveTemplateValues.Severity
+    $effectiveTitle = $effectiveTemplateValues.Title
+    $effectiveDescriptionTemplate = $effectiveTemplateValues.DescriptionTemplate
+    $effectiveAdvancedDiagnosticConsent = $effectiveTemplateValues.AdvancedDiagnosticConsent
+    $effectiveRequire24X7Response = $effectiveTemplateValues.Require24X7Response
+    $effectiveSupportPlanId = $effectiveTemplateValues.SupportPlanId
+    $effectiveQuotaChangeRequestVersion = $effectiveTemplateValues.QuotaChangeRequestVersion
+    $effectiveQuotaChangeRequestSubType = $effectiveTemplateValues.QuotaChangeRequestSubType
+    $effectiveQuotaRequestType = $effectiveTemplateValues.QuotaRequestType
+    $effectiveNewLimit = $effectiveTemplateValues.NewLimit
+
+    if ($effectiveNewLimit -le 0) {
+        throw "The resolved NewLimit must be a positive integer. Update the template or pass -NewLimit."
+    }
 
     $effectiveDelaySeconds = Get-EffectiveInterRequestDelaySeconds -ConfiguredDelaySeconds $DelaySeconds -ConfiguredRequestsPerMinute $RequestsPerMinute
     Write-Log -Message "Using effective inter-request delay of $effectiveDelaySeconds second(s) (DelaySeconds=$DelaySeconds, RequestsPerMinute=$RequestsPerMinute)."
@@ -1959,64 +2154,6 @@ function Invoke-AzureSupportBatchQuotaRun {
         $normalizedToken = $normalizedToken -replace '^[Bb]earer\s+', ''
     }
 
-    if ($null -eq $effectiveContactDetails -or $null -eq $effectiveProblemClassificationId -or $null -eq $effectiveQuotaRequestType -or $null -eq $effectiveNewLimit) {
-        $resolvedTicketTemplatePath = Get-TicketTemplatePath -TicketTemplatePath $TicketTemplatePath
-        $ticketTemplate = Get-TicketTemplate -Path $resolvedTicketTemplatePath
-
-        if (-not $ticketTemplate.contactDetails) {
-            throw "Ticket template '$resolvedTicketTemplatePath' is missing required contactDetails."
-        }
-
-        $templateContact = $ticketTemplate.contactDetails
-        if ($null -eq $effectiveContactDetails) {
-            $additionalEmailSource = if ($PSBoundParameters.ContainsKey("AdditionalEmailAddresses")) {
-                @($AdditionalEmailAddresses)
-            }
-            else {
-                @($templateContact.additionalEmailAddresses)
-            }
-            $resolvedAdditionalEmailAddresses = New-Object 'System.Collections.Generic.List[string]'
-            foreach ($email in @($additionalEmailSource)) {
-                if ($null -eq $email) {
-                    continue
-                }
-                $text = [string]$email
-                if ([string]::IsNullOrWhiteSpace($text)) {
-                    continue
-                }
-                $null = $resolvedAdditionalEmailAddresses.Add($text.Trim())
-            }
-
-            $effectiveContactDetails = @{
-                firstName = if ($PSBoundParameters.ContainsKey("ContactFirstName")) { $ContactFirstName } else { [string]$templateContact.firstName }
-                lastName = if ($PSBoundParameters.ContainsKey("ContactLastName")) { $ContactLastName } else { [string]$templateContact.lastName }
-                preferredContactMethod = if ($PSBoundParameters.ContainsKey("PreferredContactMethod")) { $PreferredContactMethod } else { [string]$templateContact.preferredContactMethod }
-                primaryEmailAddress = if ($PSBoundParameters.ContainsKey("PrimaryEmailAddress")) { $PrimaryEmailAddress } else { [string]$templateContact.primaryEmailAddress }
-                preferredTimeZone = if ($PSBoundParameters.ContainsKey("PreferredTimeZone")) { $PreferredTimeZone } else { [string]$templateContact.preferredTimeZone }
-                country = if ($PSBoundParameters.ContainsKey("Country")) { $Country } else { [string]$templateContact.country }
-                preferredSupportLanguage = if ($PSBoundParameters.ContainsKey("PreferredSupportLanguage")) { $PreferredSupportLanguage } else { [string]$templateContact.preferredSupportLanguage }
-                additionalEmailAddresses = $resolvedAdditionalEmailAddresses.ToArray()
-            }
-        }
-
-        if ($null -eq $effectiveAcceptLanguage) { $effectiveAcceptLanguage = if ($PSBoundParameters.ContainsKey("AcceptLanguage")) { $AcceptLanguage } else { [string]$ticketTemplate.acceptLanguage } }
-        if ($null -eq $effectiveProblemClassificationId) { $effectiveProblemClassificationId = if ($PSBoundParameters.ContainsKey("ProblemClassificationId")) { $ProblemClassificationId } else { [string]$ticketTemplate.problemClassificationId } }
-        if ($null -eq $effectiveServiceId) { $effectiveServiceId = if ($PSBoundParameters.ContainsKey("ServiceId")) { $ServiceId } else { [string]$ticketTemplate.serviceId } }
-        if ($null -eq $effectiveSeverity) { $effectiveSeverity = if ($PSBoundParameters.ContainsKey("Severity")) { $Severity } else { [string]$ticketTemplate.severity } }
-        if ($null -eq $effectiveTitle) { $effectiveTitle = if ($PSBoundParameters.ContainsKey("Title")) { $Title } else { [string]$ticketTemplate.title } }
-        if ($null -eq $effectiveDescriptionTemplate) { $effectiveDescriptionTemplate = if ($PSBoundParameters.ContainsKey("DescriptionTemplate")) { $DescriptionTemplate } else { [string]$ticketTemplate.descriptionTemplate } }
-        if ($null -eq $effectiveAdvancedDiagnosticConsent) { $effectiveAdvancedDiagnosticConsent = if ($PSBoundParameters.ContainsKey("AdvancedDiagnosticConsent")) { $AdvancedDiagnosticConsent } else { [string]$ticketTemplate.advancedDiagnosticConsent } }
-        if ($null -eq $effectiveRequire24X7Response) { $effectiveRequire24X7Response = if ($PSBoundParameters.ContainsKey("Require24X7Response")) { [bool]$Require24X7Response } else { [bool]$ticketTemplate.require24X7Response } }
-        if ($null -eq $effectiveSupportPlanId) { $effectiveSupportPlanId = if ($PSBoundParameters.ContainsKey("SupportPlanId")) { $SupportPlanId } else { [string]$ticketTemplate.supportPlanId } }
-        if ($null -eq $effectiveQuotaChangeRequestVersion) { $effectiveQuotaChangeRequestVersion = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestVersion")) { $QuotaChangeRequestVersion } else { [string]$ticketTemplate.quotaChangeRequestVersion } }
-        if ($null -eq $effectiveQuotaChangeRequestSubType) { $effectiveQuotaChangeRequestSubType = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestSubType")) { $QuotaChangeRequestSubType } else { [string]$ticketTemplate.quotaChangeRequestSubType } }
-        if ($null -eq $effectiveQuotaRequestType) { $effectiveQuotaRequestType = if ($PSBoundParameters.ContainsKey("QuotaRequestType")) { $QuotaRequestType } else { [string]$ticketTemplate.quotaRequestType } }
-        if ($null -eq $effectiveNewLimit) { $effectiveNewLimit = if ($PSBoundParameters.ContainsKey("NewLimit") -and $null -ne $NewLimit) { [int]$NewLimit } else { [int]$ticketTemplate.newLimit } }
-
-        if ($effectiveNewLimit -le 0) {
-            throw "The resolved NewLimit must be a positive integer. Update the template or pass -NewLimit."
-        }
-    }
 
     $baseHeaders = @{
         Accept = "*/*"
@@ -2602,9 +2739,9 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
         throw "No requests were prepared for execution."
     }
 
-    $runStatePath = Get-ResolvedArtifactPath -RequestedPath $RunStatePath -FallbackFileName "azure-support-ticket-run-state.json"
+    $resolvedStatePath = Get-ResolvedArtifactPath -RequestedPath $RunStatePath -FallbackFileName "azure-support-ticket-run-state.json"
     $requestFingerprint = Get-RequestFingerprint -Requests $Requests
-    $runState = Read-RunStateSnapshot -Path $runStatePath
+    $runState = Read-RunStateSnapshot -Path $resolvedStatePath
 
     if (
         $ResumeFromState -and
@@ -2614,7 +2751,7 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
     ) {
         $runState.status = "Running"
         $runState.requestedAction = "Run"
-        Write-Host "Resuming run from existing run state: $runStatePath"
+        Write-Host "Resuming run from existing run state: $resolvedStatePath"
     }
     else {
         $runState = New-RunStateSnapshot -Requests $Requests -RequestFingerprint $requestFingerprint -StopOnFirstFailure $StopOnFirstFailure -RunProfilePath $RunProfilePath
@@ -2623,7 +2760,7 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
     $pendingItems = Get-PendingRequestStateItems -RunState $runState -RetryFailedRequests:$RetryFailedRequests
     if (-not $pendingItems -or $pendingItems.Count -eq 0) {
         $runState.status = "Completed"
-        Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+        Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
         $finalResults = New-Object System.Collections.Generic.List[object]
         foreach ($entry in ($runState.requestQueue | Sort-Object index)) {
             $finalResults.Add([pscustomobject]@{
@@ -2641,11 +2778,11 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
     }
 
     foreach ($entry in $pendingItems) {
-        $controlState = Read-RunStateSnapshot -Path $runStatePath
+        $controlState = Read-RunStateSnapshot -Path $resolvedStatePath
         if ($null -ne $controlState -and ($controlState.requestedAction -eq "Cancel" -or $controlState.status -eq "CancelRequested")) {
             $runState.status = "Cancelled"
             $runState.lastError = "Run was cancelled before next request."
-            Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+            Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
             break
         }
 
@@ -2717,16 +2854,16 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
             $entry.completedAt = (Get-Date).ToString("o")
             $entry.durationSeconds = [math]::Round(((Get-Date) - ([datetime]$entry.startedAt)).TotalSeconds, 2)
             $runState.lastError = $entry.error
-            Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+            Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
             $isThrottleStop = (-not $DryRun) -and ($entry.error -match '(?i)\b429\b|throttl')
             if ($isThrottleStop) {
                 $runState.status = "Throttled"
-                Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+                Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
                 throw
             }
             if (-not $DryRun -and $StopOnFirstFailure) {
                 $runState.status = "StoppedOnFailure"
-                Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+                Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
                 throw
             }
             continue
@@ -2739,7 +2876,7 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
         $entry.durationSeconds = $single.durationSeconds
         $entry.completedAt = (Get-Date).ToString("o")
         $entry.error = $single.error
-        Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+        Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
 
         if ($DelaySeconds -gt 0 -and -not $DryRun -and $entry -ne $pendingItems[-1]) {
             Start-Sleep -Seconds $DelaySeconds
@@ -2749,7 +2886,7 @@ function Invoke-AzureSupportBatchQuotaRunQueued {
     if ($runState.status -ne "Cancelled" -and $runState.status -ne "StoppedOnFailure") {
         $runState.status = "Completed"
     }
-    Write-RunStateSnapshot -Path $runStatePath -RunState $runState
+    Write-RunStateSnapshot -Path $resolvedStatePath -RunState $runState
 
     $finalResults = New-Object System.Collections.Generic.List[object]
     foreach ($entry in ($runState.requestQueue | Sort-Object index)) {
@@ -2775,49 +2912,37 @@ if ($MyInvocation.InvocationName -ne '.') {
         throw "Ticket template '$resolvedTicketTemplatePath' is missing required contactDetails."
     }
 
-    $templateContact = $ticketTemplate.contactDetails
-    $additionalEmailSource = if ($PSBoundParameters.ContainsKey("AdditionalEmailAddresses")) {
-        @($AdditionalEmailAddresses)
-    }
-    else {
-        @($templateContact.additionalEmailAddresses)
-    }
-    $resolvedAdditionalEmailAddresses = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($email in @($additionalEmailSource)) {
-        if ($null -eq $email) {
-            continue
-        }
-        $text = [string]$email
-        if ([string]::IsNullOrWhiteSpace($text)) {
-            continue
-        }
-        $null = $resolvedAdditionalEmailAddresses.Add($text.Trim())
-    }
+    $effectiveContactDetails = AzureSupport.TicketEngine\Resolve-EffectiveContactDetails `
+        -TemplateContact $ticketTemplate.contactDetails `
+        -BoundParameters $PSBoundParameters `
+        -ContactFirstName $ContactFirstName `
+        -ContactLastName $ContactLastName `
+        -PreferredContactMethod $PreferredContactMethod `
+        -PrimaryEmailAddress $PrimaryEmailAddress `
+        -PreferredTimeZone $PreferredTimeZone `
+        -Country $Country `
+        -PreferredSupportLanguage $PreferredSupportLanguage `
+        -AdditionalEmailAddresses $AdditionalEmailAddresses
 
-    $effectiveContactDetails = @{
-        firstName = if ($PSBoundParameters.ContainsKey("ContactFirstName")) { $ContactFirstName } else { [string]$templateContact.firstName }
-        lastName = if ($PSBoundParameters.ContainsKey("ContactLastName")) { $ContactLastName } else { [string]$templateContact.lastName }
-        preferredContactMethod = if ($PSBoundParameters.ContainsKey("PreferredContactMethod")) { $PreferredContactMethod } else { [string]$templateContact.preferredContactMethod }
-        primaryEmailAddress = if ($PSBoundParameters.ContainsKey("PrimaryEmailAddress")) { $PrimaryEmailAddress } else { [string]$templateContact.primaryEmailAddress }
-        preferredTimeZone = if ($PSBoundParameters.ContainsKey("PreferredTimeZone")) { $PreferredTimeZone } else { [string]$templateContact.preferredTimeZone }
-        country = if ($PSBoundParameters.ContainsKey("Country")) { $Country } else { [string]$templateContact.country }
-        preferredSupportLanguage = if ($PSBoundParameters.ContainsKey("PreferredSupportLanguage")) { $PreferredSupportLanguage } else { [string]$templateContact.preferredSupportLanguage }
-        additionalEmailAddresses = $resolvedAdditionalEmailAddresses.ToArray()
-    }
+    $effectiveTemplateValues = AzureSupport.TicketEngine\Resolve-EffectiveTemplateValues `
+        -TicketTemplate $ticketTemplate `
+        -BoundParameters $PSBoundParameters `
+        -AcceptLanguage $AcceptLanguage `
+        -ProblemClassificationId $ProblemClassificationId `
+        -ServiceId $ServiceId `
+        -Severity $Severity `
+        -Title $Title `
+        -DescriptionTemplate $DescriptionTemplate `
+        -AdvancedDiagnosticConsent $AdvancedDiagnosticConsent `
+        -Require24X7Response $Require24X7Response `
+        -SupportPlanId $SupportPlanId `
+        -QuotaChangeRequestVersion $QuotaChangeRequestVersion `
+        -QuotaChangeRequestSubType $QuotaChangeRequestSubType `
+        -QuotaRequestType $QuotaRequestType `
+        -NewLimit $NewLimit
 
-    $effectiveAcceptLanguage = if ($PSBoundParameters.ContainsKey("AcceptLanguage")) { $AcceptLanguage } else { [string]$ticketTemplate.acceptLanguage }
-    $effectiveProblemClassificationId = if ($PSBoundParameters.ContainsKey("ProblemClassificationId")) { $ProblemClassificationId } else { [string]$ticketTemplate.problemClassificationId }
-    $effectiveServiceId = if ($PSBoundParameters.ContainsKey("ServiceId")) { $ServiceId } else { [string]$ticketTemplate.serviceId }
-    $effectiveSeverity = if ($PSBoundParameters.ContainsKey("Severity")) { $Severity } else { [string]$ticketTemplate.severity }
-    $effectiveTitle = if ($PSBoundParameters.ContainsKey("Title")) { $Title } else { [string]$ticketTemplate.title }
-    $effectiveDescriptionTemplate = if ($PSBoundParameters.ContainsKey("DescriptionTemplate")) { $DescriptionTemplate } else { [string]$ticketTemplate.descriptionTemplate }
-    $effectiveAdvancedDiagnosticConsent = if ($PSBoundParameters.ContainsKey("AdvancedDiagnosticConsent")) { $AdvancedDiagnosticConsent } else { [string]$ticketTemplate.advancedDiagnosticConsent }
-    $effectiveRequire24X7Response = if ($PSBoundParameters.ContainsKey("Require24X7Response")) { [bool]$Require24X7Response } else { [bool]$ticketTemplate.require24X7Response }
-    $effectiveSupportPlanId = if ($PSBoundParameters.ContainsKey("SupportPlanId")) { $SupportPlanId } else { [string]$ticketTemplate.supportPlanId }
-    $effectiveQuotaChangeRequestVersion = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestVersion")) { $QuotaChangeRequestVersion } else { [string]$ticketTemplate.quotaChangeRequestVersion }
-    $effectiveQuotaChangeRequestSubType = if ($PSBoundParameters.ContainsKey("QuotaChangeRequestSubType")) { $QuotaChangeRequestSubType } else { [string]$ticketTemplate.quotaChangeRequestSubType }
-    $effectiveQuotaRequestType = if ($PSBoundParameters.ContainsKey("QuotaRequestType")) { $QuotaRequestType } else { [string]$ticketTemplate.quotaRequestType }
-    $effectiveNewLimit = if ($PSBoundParameters.ContainsKey("NewLimit") -and $null -ne $NewLimit) { [int]$NewLimit } else { [int]$ticketTemplate.newLimit }
+    $effectiveNewLimit = $effectiveTemplateValues.NewLimit
+    $effectiveQuotaRequestType = $effectiveTemplateValues.QuotaRequestType
 
     if ($effectiveNewLimit -le 0) {
         throw "The resolved NewLimit must be a positive integer. Update the template or pass -NewLimit."

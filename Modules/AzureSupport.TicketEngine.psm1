@@ -555,7 +555,7 @@ function Get-AzureSupportDiscoveryRows {
     $regionFilterValue = if ([string]::IsNullOrWhiteSpace($RegionFilter)) { '' } else { $RegionFilter.Trim() }
     $accountFilterValue = if ([string]::IsNullOrWhiteSpace($AccountFilter)) { '' } else { $AccountFilter.Trim() }
 
-    $rawSubscriptions = Invoke-AzCommand -Args @("account", "list", "--all", "-o", "json")
+    $rawSubscriptions = Invoke-AzCommand -CommandArgs @("account", "list", "--all", "-o", "json")
     $parsedSubscriptions = ConvertFrom-Json -InputObject $rawSubscriptions -ErrorAction Stop
     $subscriptions = ConvertTo-DiscoveryCollection -InputObject $parsedSubscriptions
 
