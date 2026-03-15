@@ -1,3 +1,15 @@
+<#
+.SYNOPSIS
+    WPF GUI for bulk-creating Azure Batch quota support tickets.
+.DESCRIPTION
+    Windows-only graphical front-end for the AzureSupport.TicketEngine module.
+    Provides discovery of Batch accounts via Azure CLI, real-time validation,
+    profile save/load, background execution with progress tracking, and
+    resume/retry support through the shared engine API.
+.NOTES
+    Requires .NET Framework WPF assemblies (PresentationCore, PresentationFramework).
+    Run only on Windows with PowerShell 7+.
+#>
 [CmdletBinding()]
 param()
 
@@ -45,6 +57,10 @@ catch {
 }
 
 function Load-TicketTemplate {
+    <#
+    .SYNOPSIS
+        Resolves and loads the ticket template JSON, falling back to the default path.
+    #>
     param([Parameter(Mandatory = $false)][string]$TicketTemplatePath)
 
     $resolved = if ([string]::IsNullOrWhiteSpace($TicketTemplatePath)) {
@@ -477,6 +493,10 @@ $script:TxtLog = $MainWindow.FindName("TxtLog")
 $script:RequestGrid.ItemsSource = $script:RequestRows
 
 function Add-Log {
+    <#
+    .SYNOPSIS
+        Appends a timestamped log entry to the GUI log text box and scrolls to the end.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Message,
         [Parameter(Mandatory = $false)][string]$Level = 'INFO'
@@ -488,6 +508,10 @@ function Add-Log {
 }
 
 function Set-TextValue {
+    <#
+    .SYNOPSIS
+        Assigns a string value to a WPF TextBox, PasswordBox, or ComboBox control.
+    #>
     param(
         [Parameter(Mandatory = $true)]$Target,
         [Parameter(Mandatory = $true)]
@@ -514,6 +538,10 @@ function Set-TextValue {
 }
 
 function Set-CheckValue {
+    <#
+    .SYNOPSIS
+        Sets the IsChecked property of a WPF CheckBox.
+    #>
     param(
         [Parameter(Mandatory = $true)]$Target,
         [Parameter(Mandatory = $true)][bool]$Value
@@ -522,6 +550,7 @@ function Set-CheckValue {
 }
 
 function Load-DefaultsToControls {
+    <# .SYNOPSIS Populates all WPF controls with values from the merged template defaults. #>
     Set-TextValue -Target $script:TxtDelaySeconds -Value $script:Defaults.DelaySeconds
     Set-TextValue -Target $script:TxtRequestsPerMinute -Value $script:Defaults.RequestsPerMinute
     Set-TextValue -Target $script:TxtMaxRetries -Value $script:Defaults.MaxRetries
@@ -545,12 +574,14 @@ function Load-DefaultsToControls {
 }
 
 function Update-SummaryText {
+    <# .SYNOPSIS Refreshes the "Discovered: N | Selected: N" label. #>
     $total = if ($null -ne $script:RequestRows) { $script:RequestRows.Count } else { 0 }
     $selected = @($script:RequestRows | Where-Object { $_.Selected }).Count
     $script:TxtSummary.Text = "Discovered: $total | Selected: $selected"
 }
 
 function Get-CurrentGuiProfileSnapshot {
+    <# .SYNOPSIS Captures the current state of all GUI controls into a v1 profile hashtable. #>
     $selectedRows = @($script:RequestRows | Where-Object { $_.Selected } | Select-Object -ExpandProperty Id)
     $delaySeconds = Convert-ToIntValue -Value $script:TxtDelaySeconds.Text -Default ([int]$script:Defaults.DelaySeconds)
     $requestsPerMinute = Convert-ToIntValue -Value $script:TxtRequestsPerMinute.Text -Default ([int]$script:Defaults.RequestsPerMinute)
@@ -621,6 +652,7 @@ function Get-CurrentGuiProfileSnapshot {
 }
 
 function Write-GuiProfileSnapshot {
+    <# .SYNOPSIS Persists the GUI profile snapshot to the config JSON file. #>
     param([Parameter(Mandatory = $true)]$Profile)
 
     $parent = Split-Path -Parent $script:ProfilePath
@@ -632,6 +664,7 @@ function Write-GuiProfileSnapshot {
 }
 
 function Convert-GuiProfileToUnifiedSchema {
+    <# .SYNOPSIS Delegates to the module's Convert-ProfileToUnifiedSchema with GUI-specific defaults. #>
     param([Parameter(Mandatory = $true)]$Profile)
 
     $defaultRunStatePath = Join-Path $script:RootPath "run-state.json"
@@ -643,6 +676,7 @@ function Convert-GuiProfileToUnifiedSchema {
 }
 
 function Apply-GuiProfileSnapshot {
+    <# .SYNOPSIS Writes a unified profile's fields into the corresponding WPF controls. #>
     param([Parameter(Mandatory = $true)]$Profile)
 
     $runSettings = $Profile.runSettings
@@ -680,6 +714,7 @@ function Apply-GuiProfileSnapshot {
 }
 
 function Load-GuiProfile {
+    <# .SYNOPSIS Loads and applies the saved GUI profile from disk, migrating if needed. #>
     if (-not (Test-Path -LiteralPath $script:ProfilePath)) {
         return
     }
@@ -708,6 +743,7 @@ function Load-GuiProfile {
 }
 
 function Save-GuiProfile {
+    <# .SYNOPSIS Captures the current GUI state and persists it to the profile file. #>
     try {
         $profile = Get-CurrentGuiProfileSnapshot
         Write-GuiProfileSnapshot -Profile $profile
@@ -718,6 +754,7 @@ function Save-GuiProfile {
 }
 
 function Update-Validation {
+    <# .SYNOPSIS Runs full input validation across all controls and delegates to the shared preflight. #>
     $lines = New-Object System.Collections.Generic.List[string]
     $errors = New-Object System.Collections.Generic.List[string]
     $warnings = New-Object System.Collections.Generic.List[string]
@@ -928,6 +965,7 @@ function Update-Validation {
 }
 
 function Update-RequestRowsFromRunState {
+    <# .SYNOPSIS Synchronizes DataGrid row statuses from the persisted run-state snapshot. #>
     param([Parameter(Mandatory = $true)]$RunState)
 
     if ($null -eq $RunState -or -not $RunState.requestQueue) {
@@ -972,6 +1010,7 @@ function Update-RequestRowsFromRunState {
 }
 
 function Get-RunStateForUi {
+    <# .SYNOPSIS Reads the current run-state JSON file for progress display. #>
     if ([string]::IsNullOrWhiteSpace($script:RunStatePath) -or -not (Test-Path -LiteralPath $script:RunStatePath)) {
         return $null
     }
@@ -986,6 +1025,7 @@ function Get-RunStateForUi {
 }
 
 function New-GridRow {
+    <# .SYNOPSIS Thin wrapper that delegates to the module's New-DiscoveryGridRow. #>
     param(
         [Parameter(Mandatory = $true)][string]$Id,
         [Parameter(Mandatory = $true)][string]$SubscriptionId,
@@ -1000,12 +1040,14 @@ function New-GridRow {
 }
 
 function Clear-RequestRows {
+    <# .SYNOPSIS Removes all rows from the observable collection and refreshes the UI. #>
     $script:RequestRows.Clear()
     Update-SummaryText
     Update-Validation
 }
 
 function Start-Discovery {
+    <# .SYNOPSIS Launches a background job to discover Batch accounts via the shared engine module. #>
     if ($script:DiscoveryJob -and $script:DiscoveryJob.State -eq 'Running') { return }
 
     Clear-RequestRows
@@ -1099,6 +1141,7 @@ function Get-SelectedRequests {
 }
 
 function Start-Run {
+    <# .SYNOPSIS Validates settings, saves the profile, and dispatches the run to a background job. #>
     if ($script:RunJob -and $script:RunJob.State -eq 'Running') { return }
     $selected = Get-SelectedRequests
     if (-not $selected -or $selected.Count -eq 0) {
@@ -1280,6 +1323,7 @@ function Start-Run {
 }
 
 function Cancel-Run {
+    <# .SYNOPSIS Signals the running job to cancel via a cancellation file and stops the job. #>
     if (-not $script:CancellationFile) {
         if ($script:RunJob) {
             Stop-Job -Job $script:RunJob -ErrorAction SilentlyContinue
@@ -1301,6 +1345,7 @@ function Cancel-Run {
 }
 
 function Poll-Jobs {
+    <# .SYNOPSIS Timer callback that checks discovery/run jobs for output and updates the UI. #>
     if ($script:DiscoveryJob) {
         $outputs = Receive-Job -Job $script:DiscoveryJob
         foreach ($item in $outputs) {
