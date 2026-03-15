@@ -1,3 +1,15 @@
+<#
+.SYNOPSIS
+    CLI entry point for bulk-creating Azure Batch quota support tickets.
+.DESCRIPTION
+    Imports the AzureSupport.TicketEngine module and delegates execution to
+    Invoke-AzureSupportTicketCli.  Supports template-driven requests,
+    auto-discovery from Azure CLI, resume/retry, proxy pools, and dry-run mode.
+.EXAMPLE
+    ./create_azure_support_tickets.ps1 -DryRun -TryAzCliToken $true
+.EXAMPLE
+    ./create_azure_support_tickets.ps1 -Token $env:AZURE_BEARER_TOKEN -AutoDiscoverRequests
+#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
@@ -7,72 +19,72 @@ param(
     [int]$DelaySeconds = 23,
 
     [Parameter(Mandatory = $false)]
-[string]$TicketTemplatePath,
+    [string]$TicketTemplatePath,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactFirstName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactFirstName,
 
-[Parameter(Mandatory = $false)]
-[string]$ContactLastName,
+    [Parameter(Mandatory = $false)]
+    [string]$ContactLastName,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredContactMethod,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredContactMethod,
 
-[Parameter(Mandatory = $false)]
-[string]$PrimaryEmailAddress,
+    [Parameter(Mandatory = $false)]
+    [string]$PrimaryEmailAddress,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredTimeZone,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredTimeZone,
 
-[Parameter(Mandatory = $false)]
-[string]$Country,
+    [Parameter(Mandatory = $false)]
+    [string]$Country,
 
-[Parameter(Mandatory = $false)]
-[string]$PreferredSupportLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$PreferredSupportLanguage,
 
-[Parameter(Mandatory = $false)]
-[string[]]$AdditionalEmailAddresses,
+    [Parameter(Mandatory = $false)]
+    [string[]]$AdditionalEmailAddresses,
 
-[Parameter(Mandatory = $false)]
-[string]$AcceptLanguage,
+    [Parameter(Mandatory = $false)]
+    [string]$AcceptLanguage,
 
-[Parameter(Mandatory = $false)]
-[string]$ProblemClassificationId,
+    [Parameter(Mandatory = $false)]
+    [string]$ProblemClassificationId,
 
-[Parameter(Mandatory = $false)]
-[string]$ServiceId,
+    [Parameter(Mandatory = $false)]
+    [string]$ServiceId,
 
-[Parameter(Mandatory = $false)]
-[string]$Severity,
+    [Parameter(Mandatory = $false)]
+    [string]$Severity,
 
-[Parameter(Mandatory = $false)]
-[string]$Title,
+    [Parameter(Mandatory = $false)]
+    [string]$Title,
 
-[Parameter(Mandatory = $false)]
-[string]$DescriptionTemplate,
+    [Parameter(Mandatory = $false)]
+    [string]$DescriptionTemplate,
 
-[Parameter(Mandatory = $false)]
-[string]$AdvancedDiagnosticConsent,
+    [Parameter(Mandatory = $false)]
+    [string]$AdvancedDiagnosticConsent,
 
-[Parameter(Mandatory = $false)]
-[Nullable[bool]]$Require24X7Response,
+    [Parameter(Mandatory = $false)]
+    [Nullable[bool]]$Require24X7Response,
 
-[Parameter(Mandatory = $false)]
-[string]$SupportPlanId,
+    [Parameter(Mandatory = $false)]
+    [string]$SupportPlanId,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestVersion,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestVersion,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaChangeRequestSubType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaChangeRequestSubType,
 
-[Parameter(Mandatory = $false)]
-[string]$QuotaRequestType,
+    [Parameter(Mandatory = $false)]
+    [string]$QuotaRequestType,
 
-[Parameter(Mandatory = $false)]
-[Nullable[int]]$NewLimit,
+    [Parameter(Mandatory = $false)]
+    [Nullable[int]]$NewLimit,
 
-[Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false)]
     [switch]$DryRun,
 
     [Parameter(Mandatory = $false)]
@@ -142,11 +154,9 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$CancelSignalPath,
 
-
     [Parameter(Mandatory = $false)]
     [switch]$StopOnFirstFailure
 )
-
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"

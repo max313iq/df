@@ -1,3 +1,14 @@
+#Requires -Version 7.0
+
+<#
+.SYNOPSIS
+    Azure Support Ticket Engine module — shared API surface for CLI and GUI.
+.DESCRIPTION
+    Provides template loading, profile management, discovery helpers,
+    input validation utilities, and the core batch-quota run engine.
+    Functions marked as public are exported; everything else is internal.
+#>
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -51,6 +62,12 @@ function Get-ObjectMemberValue {
 }
 
 function Get-FirstDefinedValue {
+    <#
+    .SYNOPSIS
+        Returns the first non-null value from an ordered list of candidates.
+    .PARAMETER Values
+        Array of candidate values; the first non-null entry is returned.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]
@@ -68,6 +85,18 @@ function Get-FirstDefinedValue {
 }
 
 function Convert-ToBoolValue {
+    <#
+    .SYNOPSIS
+        Coerces a value to boolean, supporting strings like "true"/"false"/"yes"/"no"/"on"/"off".
+    .PARAMETER Value
+        The input to convert. Null returns $Default.
+    .PARAMETER Default
+        Fallback when Value is null or empty.
+    .PARAMETER Name
+        Label used in error messages when Strict mode rejects invalid input.
+    .PARAMETER Strict
+        When set, throws on unrecognizable values instead of falling back to $Default.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]$Value,
@@ -123,6 +152,14 @@ function Convert-ToBoolValue {
 }
 
 function Convert-ToIntValue {
+    <#
+    .SYNOPSIS
+        Safely parses a value to integer, returning a default on failure.
+    .PARAMETER Value
+        The input to parse. Null returns $Default.
+    .PARAMETER Default
+        Fallback value when parsing fails.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]$Value,
@@ -142,6 +179,11 @@ function Convert-ToIntValue {
 }
 
 function Convert-ToStringArray {
+    <#
+    .SYNOPSIS
+        Normalizes a value (scalar, array, or nested array) into a flat string array,
+        trimming whitespace and discarding null/blank entries.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $false)]$Value)
 
@@ -179,6 +221,10 @@ function Convert-ToStringArray {
 }
 
 function Get-DefaultStorageDirectory {
+    <#
+    .SYNOPSIS
+        Returns the preferred local storage directory for run artifacts, creating it if needed.
+    #>
     $candidates = @($env:LOCALAPPDATA, $env:APPDATA, [System.IO.Path]::GetTempPath())
     $base = $candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
     $storageDir = Join-Path $base "AzureSupportTickets"
@@ -196,6 +242,10 @@ function Get-DefaultStorageDirectory {
 }
 
 function Resolve-DefaultedPath {
+    <#
+    .SYNOPSIS
+        Returns the supplied path when non-empty, otherwise joins $DefaultFileName to the default storage directory.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)][string]$Path,
@@ -210,6 +260,14 @@ function Resolve-DefaultedPath {
 }
 
 function Get-RunProfile {
+    <#
+    .SYNOPSIS
+        Loads a run profile JSON file and returns it as a PSObject.
+    .PARAMETER Path
+        Path to the profile JSON file.
+    .OUTPUTS
+        PSCustomObject representing the profile, or $null when the file is missing/empty.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -231,6 +289,14 @@ function Get-RunProfile {
 }
 
 function Save-RunProfile {
+    <#
+    .SYNOPSIS
+        Serializes a run profile to JSON and writes it to disk, creating parent directories as needed.
+    .PARAMETER Path
+        Destination file path.
+    .PARAMETER Profile
+        The profile object to serialize (depth 12).
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -425,6 +491,11 @@ foreach ($name in $functionNames) {
 }
 
 function ConvertTo-DiscoveryCollection {
+    <#
+    .SYNOPSIS
+        Normalizes a JSON-deserialized result (which may be an OData wrapper or nested array)
+        into a flat array of objects.
+    #>
     param([Parameter(Mandatory = $true)]$InputObject)
 
     if ($null -eq $InputObject) {
@@ -444,6 +515,10 @@ function ConvertTo-DiscoveryCollection {
 }
 
 function Split-DiscoveryFilterList {
+    <#
+    .SYNOPSIS
+        Splits a delimited string (comma, semicolon, or newline) into a unique trimmed string array.
+    #>
     param([Parameter(Mandatory = $false)][string]$Value)
 
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -979,7 +1054,166 @@ function Convert-ProfileToUnifiedSchema {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Input Validation Utilities
+# ---------------------------------------------------------------------------
+
+function Test-NonEmptyString {
+    <#
+    .SYNOPSIS
+        Returns $true when the input is a non-null, non-whitespace string.
+    .PARAMETER Value
+        The string to test.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $false)][string]$Value)
+
+    return (-not [string]::IsNullOrWhiteSpace($Value))
+}
+
+function ConvertTo-TrimmedString {
+    <#
+    .SYNOPSIS
+        Trims leading/trailing whitespace and returns the sanitized string.
+        Returns an empty string for null/whitespace input.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $false)][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ''
+    }
+    return $Value.Trim()
+}
+
+function Test-NumericRange {
+    <#
+    .SYNOPSIS
+        Validates that a numeric value falls within an inclusive range.
+    .PARAMETER Value
+        The number to test.
+    .PARAMETER Minimum
+        Lower bound (inclusive).
+    .PARAMETER Maximum
+        Upper bound (inclusive).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][int]$Value,
+        [Parameter(Mandatory = $true)][int]$Minimum,
+        [Parameter(Mandatory = $true)][int]$Maximum
+    )
+
+    return ($Value -ge $Minimum -and $Value -le $Maximum)
+}
+
+function Test-EmailFormat {
+    <#
+    .SYNOPSIS
+        Lightweight email format check (contains '@' and a dot in the domain part).
+    .PARAMETER Value
+        The string to validate.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $false)][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+    return ($Value -match '^[^@\s]+@[^@\s]+\.[^@\s]+$')
+}
+
+function ConvertTo-EscapedString {
+    <#
+    .SYNOPSIS
+        Escapes common special characters (<, >, &, single/double quotes) for safe embedding.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $false)][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ''
+    }
+    $escaped = $Value -replace '&', '&amp;'
+    $escaped = $escaped -replace '<', '&lt;'
+    $escaped = $escaped -replace '>', '&gt;'
+    $escaped = $escaped -replace '"', '&quot;'
+    $escaped = $escaped -replace "'", '&#39;'
+    return $escaped
+}
+
+# ---------------------------------------------------------------------------
+# Azure Region Helpers
+# ---------------------------------------------------------------------------
+
+function Get-AzureRegionList {
+    <#
+    .SYNOPSIS
+        Returns the current list of Azure regions by querying Azure CLI.
+    .DESCRIPTION
+        Executes 'az account list-locations' and returns an array of region name strings.
+        Falls back to a well-known static list when Azure CLI is not available.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $staticFallback = @(
+        'eastus', 'eastus2', 'southcentralus', 'westus2', 'westus3',
+        'australiaeast', 'southeastasia', 'northeurope', 'swedencentral',
+        'uksouth', 'westeurope', 'centralus', 'southafricanorth', 'centralindia',
+        'eastasia', 'japaneast', 'koreacentral', 'canadacentral', 'francecentral',
+        'germanywestcentral', 'italynorth', 'norwayeast', 'polandcentral',
+        'switzerlandnorth', 'uaenorth', 'brazilsouth', 'israelcentral',
+        'qatarcentral', 'northcentralus', 'westus', 'japanwest',
+        'australiasoutheast', 'canadaeast', 'ukwest', 'southindia', 'westindia'
+    )
+
+    try {
+        $azPath = Get-Command az -ErrorAction SilentlyContinue
+        if (-not $azPath) {
+            return $staticFallback
+        }
+
+        $raw = & az account list-locations --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            return $staticFallback
+        }
+
+        $regions = @()
+        foreach ($line in ($raw -split "`r?`n")) {
+            $trimmed = $line.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                $regions += $trimmed
+            }
+        }
+
+        if ($regions.Count -gt 0) {
+            return ($regions | Sort-Object -Unique)
+        }
+        return $staticFallback
+    }
+    catch {
+        return $staticFallback
+    }
+}
+
+# ---------------------------------------------------------------------------
+# CLI Entry Point
+# ---------------------------------------------------------------------------
+
 function Invoke-AzureSupportTicketCli {
+    <#
+    .SYNOPSIS
+        Dispatches CLI parameters to the engine core script for execution.
+    .DESCRIPTION
+        Called by the CLI entry-point script. Passes all bound parameters through
+        to the Core.ps1 script, which handles template loading, discovery,
+        preflight validation, and the actual run.
+    .PARAMETER BoundParameters
+        Hashtable of the caller's $PSBoundParameters.
+    .PARAMETER ScriptRootOverride
+        Root directory used for resolving relative config/template paths.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][hashtable]$BoundParameters,
@@ -1002,35 +1236,56 @@ function Invoke-AzureSupportTicketCli {
     & $script:EngineCoreScriptPath @invokeParams
 }
 
+# ---------------------------------------------------------------------------
+# Module Exports — public API surface
+# ---------------------------------------------------------------------------
+
 Export-ModuleMember -Function @(
+    # Core engine
     "Invoke-AzureSupportBatchQuotaRun",
     "Invoke-AzureSupportBatchQuotaRunQueued",
     "Invoke-AzureSupportTicketCli",
+
+    # Discovery
     "Get-AzureSupportDiscoveryRows",
     "Get-SubscriptionsFromAzCli",
     "Get-BatchRequestsFromAzCli",
     "Expand-AccountRegionRequests",
     "Resolve-RequestFieldValue",
+    "New-DiscoveryGridRow",
+    "Test-DiscoveryRegionValue",
+    "Split-DiscoveryFilterList",
+    "ConvertTo-DiscoveryCollection",
+    "Get-AzureRegionList",
+
+    # Preflight & validation
     "Test-AzureSupportPreFlight",
+    "Test-NonEmptyString",
+    "Test-NumericRange",
+    "Test-EmailFormat",
+    "ConvertTo-TrimmedString",
+    "ConvertTo-EscapedString",
+
+    # Templates
+    "Get-TicketTemplatePath",
+    "Get-TicketTemplate",
+    "Merge-TemplateDefaults",
+    "Resolve-EffectiveContactDetails",
+    "Resolve-EffectiveTemplateValues",
+    "ConvertTo-ValidatedRequestList",
+
+    # Profiles
+    "Get-RunProfile",
+    "Save-RunProfile",
+    "Convert-ProfileToUnifiedSchema",
     "New-RunProfileSnapshot",
+
+    # Utilities
     "Convert-ToBoolValue",
     "Convert-ToIntValue",
     "Convert-ToStringArray",
     "Get-ObjectMemberValue",
     "Get-FirstDefinedValue",
     "Get-DefaultStorageDirectory",
-    "Resolve-DefaultedPath",
-    "Get-RunProfile",
-    "Save-RunProfile",
-    "Get-TicketTemplatePath",
-    "Get-TicketTemplate",
-    "Merge-TemplateDefaults",
-    "Split-DiscoveryFilterList",
-    "ConvertTo-DiscoveryCollection",
-    "New-DiscoveryGridRow",
-    "Test-DiscoveryRegionValue",
-    "Convert-ProfileToUnifiedSchema",
-    "Resolve-EffectiveContactDetails",
-    "Resolve-EffectiveTemplateValues",
-    "ConvertTo-ValidatedRequestList"
+    "Resolve-DefaultedPath"
 )
