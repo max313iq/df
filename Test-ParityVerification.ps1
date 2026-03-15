@@ -72,7 +72,13 @@ $requiredExports = @(
     'New-RunProfileSnapshot',
     'Get-RunProfile',
     'Save-RunProfile',
-    'Convert-ProfileToUnifiedSchema'
+    'Convert-ProfileToUnifiedSchema',
+    'Get-AzureRegionList',
+    'Convert-ToSanitizedString',
+    'Test-NonEmptyString',
+    'Test-NumericRange',
+    'Test-EmailFormat',
+    'Escape-SpecialCharacters'
 )
 
 foreach ($fn in $requiredExports) {
@@ -354,6 +360,21 @@ Write-TestResult -Name 'Convert-ToIntValue returns default for null' -Passed ($i
 $arrVal = @(Convert-ToStringArray -Value @('a', '', 'b', $null, 'c'))
 Write-TestResult -Name 'Convert-ToStringArray filters blanks and nulls' -Passed ($arrVal.Count -eq 3)
 
+$sanitized = Convert-ToSanitizedString -Value "  hello`r`nworld  "
+Write-TestResult -Name 'Convert-ToSanitizedString trims and normalizes text' -Passed ($sanitized -eq 'hello world')
+
+$nonEmpty = Test-NonEmptyString -Value ' sample ' -Name 'sample'
+Write-TestResult -Name 'Test-NonEmptyString validates non-empty values' -Passed ($nonEmpty.IsValid -and $nonEmpty.Value -eq 'sample')
+
+$numericRange = Test-NumericRange -Value '25' -Minimum 1 -Maximum 100 -Name 'rangeValue'
+Write-TestResult -Name 'Test-NumericRange validates values in range' -Passed ($numericRange.IsValid -and $numericRange.Value -eq 25)
+
+$emailValid = Test-EmailFormat -Email 'user@example.com'
+Write-TestResult -Name 'Test-EmailFormat accepts valid email' -Passed $emailValid
+
+$escaped = Escape-SpecialCharacters -Value 'line1\line2 "quoted"'
+Write-TestResult -Name 'Escape-SpecialCharacters escapes slash and quotes' -Passed ($escaped -eq 'line1\\line2 \"quoted\"')
+
 $firstDef = Get-FirstDefinedValue -Values @($null, $null, 'hello', 'world')
 Write-TestResult -Name 'Get-FirstDefinedValue returns first non-null' -Passed ($firstDef -eq 'hello')
 
@@ -362,6 +383,9 @@ Write-TestResult -Name 'Get-ObjectMemberValue reads PSObject property' -Passed (
 
 $objMemberMissing = Get-ObjectMemberValue -Object ([pscustomobject]@{ Foo = 'bar' }) -Name 'Baz'
 Write-TestResult -Name 'Get-ObjectMemberValue returns null for missing' -Passed ($null -eq $objMemberMissing)
+
+$knownRegions = @(Get-AzureRegionList)
+Write-TestResult -Name 'Get-AzureRegionList returns at least one region' -Passed ($knownRegions.Count -gt 0)
 
 # -------------------------------------------------------------------
 Write-Host "`n=== Dry-Run Scenario: Template-Only ===" -ForegroundColor Cyan

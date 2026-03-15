@@ -178,6 +178,194 @@ function Convert-ToStringArray {
     return @($values)
 }
 
+function Convert-ToSanitizedString {
+    <#
+    .SYNOPSIS
+        Trims and sanitizes a string value for safe request handling.
+    .DESCRIPTION
+        Converts any input to string, trims whitespace, optionally normalizes
+        line breaks and removes control characters that commonly break CLI/API payloads.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][AllowNull()]$Value,
+        [Parameter(Mandatory = $false)][switch]$PreserveLineBreaks
+    )
+
+    if ($null -eq $Value) {
+        return ''
+    }
+
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return ''
+    }
+
+    $text = $text.Trim()
+    $text = $text -replace '[\u0000-\u0008\u000B\u000C\u000E-\u001F]', ''
+    if (-not $PreserveLineBreaks) {
+        $text = $text -replace '\r?\n', ' '
+    }
+    return $text.Trim()
+}
+
+function Test-NonEmptyString {
+    <#
+    .SYNOPSIS
+        Validates that a value is a non-empty string after sanitization.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][AllowNull()]$Value,
+        [Parameter(Mandatory = $false)][string]$Name = 'value'
+    )
+
+    $normalized = Convert-ToSanitizedString -Value $Value
+    return [pscustomobject]@{
+        IsValid = (-not [string]::IsNullOrWhiteSpace($normalized))
+        Value   = $normalized
+        Error   = if ([string]::IsNullOrWhiteSpace($normalized)) { "$Name must be a non-empty string." } else { '' }
+    }
+}
+
+function Test-NumericRange {
+    <#
+    .SYNOPSIS
+        Validates integer input against a numeric range.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][AllowNull()]$Value,
+        [Parameter(Mandatory = $true)][int]$Minimum,
+        [Parameter(Mandatory = $true)][int]$Maximum,
+        [Parameter(Mandatory = $false)][string]$Name = 'value'
+    )
+
+    $parsed = 0
+    if (-not [int]::TryParse([string]$Value, [ref]$parsed)) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Value   = $null
+            Error   = "$Name must be an integer."
+        }
+    }
+
+    if ($parsed -lt $Minimum -or $parsed -gt $Maximum) {
+        return [pscustomobject]@{
+            IsValid = $false
+            Value   = $parsed
+            Error   = "$Name must be between $Minimum and $Maximum."
+        }
+    }
+
+    return [pscustomobject]@{
+        IsValid = $true
+        Value   = $parsed
+        Error   = ''
+    }
+}
+
+function Test-EmailFormat {
+    <#
+    .SYNOPSIS
+        Validates a basic email format.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][AllowNull()]$Email,
+        [Parameter(Mandatory = $false)][switch]$AllowEmpty
+    )
+
+    $normalized = Convert-ToSanitizedString -Value $Email
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return [bool]$AllowEmpty
+    }
+
+    return ($normalized -match '^[^@\s]+@[^@\s]+\.[^@\s]+$')
+}
+
+function Escape-SpecialCharacters {
+    <#
+    .SYNOPSIS
+        Escapes control and quote characters for safe string embedding.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $false)][AllowNull()]$Value)
+
+    $text = Convert-ToSanitizedString -Value $Value -PreserveLineBreaks
+    if ([string]::IsNullOrEmpty($text)) {
+        return $text
+    }
+
+    return ($text `
+        -replace '\\', '\\\\' `
+        -replace '"', '\"' `
+        -replace "`t", '\t' `
+        -replace "`r", '\r' `
+        -replace "`n", '\n')
+}
+
+function Get-AzureRegionList {
+    <#
+    .SYNOPSIS
+        Returns the current Azure region short-name list.
+    .DESCRIPTION
+        Uses Azure CLI (`az account list-locations`) and caches the result in-memory
+        for a configurable TTL. Falls back to a minimal known-safe list when CLI is
+        unavailable or not authenticated.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][int]$CacheTtlMinutes = 30,
+        [Parameter(Mandatory = $false)][switch]$ForceRefresh
+    )
+
+    $existingRegionCache = Get-Variable -Scope Script -Name AzureRegionCache -ErrorAction SilentlyContinue
+    if ($null -eq $existingRegionCache -or $null -eq $existingRegionCache.Value) {
+        $script:AzureRegionCache = [ordered]@{
+            LastRefreshUtc = $null
+            Regions = @()
+        }
+    }
+
+    $now = (Get-Date).ToUniversalTime()
+    if (-not $ForceRefresh -and $script:AzureRegionCache.LastRefreshUtc -and $script:AzureRegionCache.Regions.Count -gt 0) {
+        $ageMinutes = ($now - $script:AzureRegionCache.LastRefreshUtc).TotalMinutes
+        if ($ageMinutes -lt [math]::Max(1, $CacheTtlMinutes)) {
+            return @($script:AzureRegionCache.Regions)
+        }
+    }
+
+    $resolvedRegions = New-Object 'System.Collections.Generic.List[string]'
+    try {
+        $raw = Invoke-AzCommand -Args @("account", "list-locations", "--query", "[].name", "-o", "tsv")
+        foreach ($line in ($raw -split "`r?`n")) {
+            $candidate = Convert-ToSanitizedString -Value $line
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                continue
+            }
+            if (-not ($resolvedRegions -contains $candidate)) {
+                $resolvedRegions.Add($candidate) | Out-Null
+            }
+        }
+    }
+    catch {
+        Write-Verbose "Unable to fetch Azure region list from Azure CLI: $($_.Exception.Message)"
+    }
+
+    if ($resolvedRegions.Count -eq 0) {
+        foreach ($fallback in @('eastus', 'westus2', 'southcentralus', 'westeurope')) {
+            if (-not ($resolvedRegions -contains $fallback)) {
+                $resolvedRegions.Add($fallback) | Out-Null
+            }
+        }
+    }
+
+    $script:AzureRegionCache.LastRefreshUtc = $now
+    $script:AzureRegionCache.Regions = @($resolvedRegions)
+    return @($script:AzureRegionCache.Regions)
+}
+
 function Get-DefaultStorageDirectory {
     $candidates = @($env:LOCALAPPDATA, $env:APPDATA, [System.IO.Path]::GetTempPath())
     $base = $candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
@@ -611,13 +799,15 @@ function Test-DiscoveryRegionValue {
     param(
         [Parameter(Mandatory = $false)][string]$Region,
         [Parameter(Mandatory = $false)][string[]]$DiscoveredRegions = @(),
-        [Parameter(Mandatory = $false)][string]$DefaultRegion = 'eastus'
+        [Parameter(Mandatory = $false)][string]$DefaultRegion = 'eastus',
+        [Parameter(Mandatory = $false)][string[]]$KnownRegions = @(),
+        [Parameter(Mandatory = $false)][switch]$SkipAzureRegionCatalogValidation
     )
 
     $errors = New-Object System.Collections.Generic.List[string]
     $warnings = New-Object System.Collections.Generic.List[string]
 
-    $normalized = if ([string]::IsNullOrWhiteSpace($Region)) { '' } else { $Region.Trim() }
+    $normalized = Convert-ToSanitizedString -Value $Region
 
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         $normalized = $DefaultRegion
@@ -627,6 +817,16 @@ function Test-DiscoveryRegionValue {
     $validDiscovered = @(Convert-ToStringArray -Value $DiscoveredRegions)
     if ($validDiscovered.Count -gt 0 -and ($validDiscovered -notcontains $normalized)) {
         $warnings.Add("Region '$normalized' is not among discovered regions: $($validDiscovered -join ', ').")
+    }
+
+    if (-not $SkipAzureRegionCatalogValidation) {
+        $catalog = @(Convert-ToStringArray -Value $KnownRegions)
+        if ($catalog.Count -eq 0) {
+            $catalog = @(Get-AzureRegionList)
+        }
+        if ($catalog.Count -gt 0 -and ($catalog -notcontains $normalized)) {
+            $warnings.Add("Region '$normalized' was not found in the Azure region catalog.")
+        }
     }
 
     return [pscustomobject]@{
@@ -707,15 +907,15 @@ function ConvertTo-ValidatedRequestList {
     foreach ($request in $normalizedRequests) {
         $requestIndex++
 
-        $subscription = Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')
-        $account = Resolve-RequestFieldValue -Request $request -FieldNames @('account', 'accountName', 'AccountName', 'name')
-        $region = Resolve-RequestFieldValue -Request $request -FieldNames @('region', 'location')
+        $subscriptionCheck = Test-NonEmptyString -Value (Resolve-RequestFieldValue -Request $request -FieldNames @('sub', 'subscription', 'subscriptionId', 'SubscriptionId', 'Subscription')) -Name "Request #$requestIndex subscription"
+        $accountCheck = Test-NonEmptyString -Value (Resolve-RequestFieldValue -Request $request -FieldNames @('account', 'accountName', 'AccountName', 'name')) -Name "Request #$requestIndex account"
+        $region = Convert-ToSanitizedString -Value (Resolve-RequestFieldValue -Request $request -FieldNames @('region', 'location'))
 
-        if ([string]::IsNullOrWhiteSpace($subscription)) {
-            throw "Request #$requestIndex is missing required subscription (sub/subscription/subscriptionId)."
+        if (-not $subscriptionCheck.IsValid) {
+            throw "$($subscriptionCheck.Error) (supported: sub/subscription/subscriptionId)."
         }
-        if ([string]::IsNullOrWhiteSpace($account)) {
-            throw "Request #$requestIndex is missing required account (account/accountName/name)."
+        if (-not $accountCheck.IsValid) {
+            throw "$($accountCheck.Error) (supported: account/accountName/name)."
         }
         if ([string]::IsNullOrWhiteSpace($region)) {
             $region = "eastus"
@@ -724,22 +924,25 @@ function ConvertTo-ValidatedRequestList {
         $limit = $DefaultNewLimit
         $limitRaw = Resolve-RequestFieldValue -Request $request -FieldNames @('newLimit', 'NewLimit', 'limit')
         if ($null -ne $limitRaw) {
-            $limitParsed = 0
-            if (-not [int]::TryParse([string]$limitRaw, [ref]$limitParsed) -or $limitParsed -lt 0) {
-                throw "Request #$requestIndex has an invalid newLimit '$limitRaw'."
+            $limitCheck = Test-NumericRange -Value $limitRaw -Minimum 1 -Maximum [int]::MaxValue -Name "Request #$requestIndex newLimit"
+            if (-not $limitCheck.IsValid) {
+                throw "$($limitCheck.Error) (received '$limitRaw')."
             }
-            $limit = $limitParsed
+            $limit = [int]$limitCheck.Value
         }
 
         $quotaType = Resolve-RequestFieldValue -Request $request -FieldNames @('quotaType', 'type', 'Type')
         if ([string]::IsNullOrWhiteSpace($quotaType)) {
             $quotaType = $DefaultQuotaType
         }
+        else {
+            $quotaType = Convert-ToSanitizedString -Value $quotaType
+        }
 
         $validated.Add([pscustomobject]@{
             Index     = $requestIndex
-            sub       = $subscription.Trim()
-            account   = $account.Trim()
+            sub       = $subscriptionCheck.Value
+            account   = $accountCheck.Value
             region    = $region.Trim()
             limit     = $limit
             quotaType = $quotaType
@@ -1029,6 +1232,12 @@ Export-ModuleMember -Function @(
     "ConvertTo-DiscoveryCollection",
     "New-DiscoveryGridRow",
     "Test-DiscoveryRegionValue",
+    "Get-AzureRegionList",
+    "Convert-ToSanitizedString",
+    "Test-NonEmptyString",
+    "Test-NumericRange",
+    "Test-EmailFormat",
+    "Escape-SpecialCharacters",
     "Convert-ProfileToUnifiedSchema",
     "Resolve-EffectiveContactDetails",
     "Resolve-EffectiveTemplateValues",

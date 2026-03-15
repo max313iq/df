@@ -21,6 +21,7 @@ $script:ProfilePath = Join-Path $script:RootPath 'config\azure-ticket-gui-profil
 $script:TicketTemplatePath = Join-Path $script:RootPath 'config\default-ticket-template.json'
 $script:Template = $null
 $script:ValidationState = @{ IsValid = $false; Errors = @(); Warnings = @() }
+$script:KnownAzureRegions = @()
 
 if (-not (Test-Path -LiteralPath $script:EngineModulePath)) {
     Add-Type -AssemblyName PresentationFramework
@@ -61,43 +62,21 @@ try {
     $script:Template = Load-TicketTemplate -TicketTemplatePath $script:TicketTemplatePath
 }
 catch {
-    $fallbackTemplate = [pscustomobject]@{
-        title = 'Quota request for Batch'
-        acceptLanguage = 'en'
-        defaults = @{
-            delaySeconds = 23
-            requestsPerMinute = 2
-            maxRetries = 6
-            baseRetrySeconds = 25
-            newLimit = 680
-            quotaType = 'LowPriority'
-        }
-        contactDetails = @{
-            firstName = 'Support'
-            lastName = 'User'
-            preferredContactMethod = 'email'
-            primaryEmailAddress = 'support@example.com'
-            preferredTimeZone = 'UTC'
-            country = 'US'
-            preferredSupportLanguage = 'en-us'
-            additionalEmailAddresses = @()
-        }
-        problemClassificationId = '/providers/microsoft.support/services/06bfd9d3-516b-d5c6-5802-169c800dec89/problemclassifications/831b2fb3-4db3-3d32-af35-bbb3d3eaeba2'
-        serviceId = '/providers/microsoft.support/services/06bfd9d3-516b-d5c6-5802-169c800dec89'
-        severity = 'minimal'
-        descriptionTemplate = 'Quota request for Batch'
-        advancedDiagnosticConsent = 'Yes'
-        require24X7Response = $false
-        supportPlanId = 'U291cmNlOkZyZWUsRnJlZUlkOjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwOS%3d'
-        quotaChangeRequestVersion = '1.0'
-        quotaChangeRequestSubType = 'Account'
-        quotaRequestType = 'LowPriority'
-        defaultRequests = @()
-    }
-    $script:Template = $fallbackTemplate
+    [System.Windows.MessageBox]::Show(
+        "Unable to load ticket template '$($script:TicketTemplatePath)': $($_.Exception.Message)`nThe GUI now requires a valid template file and will exit.",
+        "Azure Support Ticket Engine",
+        [System.Windows.MessageBoxButton]::OK,
+        [System.Windows.MessageBoxImage]::Error)
+    exit 1
 }
 
 $script:Defaults = Merge-TemplateDefaults -Template $script:Template
+try {
+    $script:KnownAzureRegions = @(Get-AzureRegionList)
+}
+catch {
+    $script:KnownAzureRegions = @('eastus', 'westus2', 'southcentralus', 'westeurope')
+}
 
 
 [xml]$xaml = @'
@@ -790,7 +769,7 @@ function Update-Validation {
     }
     $quotaType = if ([string]::IsNullOrWhiteSpace($script:CmbQuotaType.Text)) { [string]$script:Defaults.QuotaType } else { [string]$script:CmbQuotaType.Text }
 
-    if (-not [string]::IsNullOrWhiteSpace($script:TxtContactEmail.Text) -and $script:TxtContactEmail.Text -match '^[^@\s]+@[^@\s]+\.[^@\s]+$') {
+    if (Test-EmailFormat -Email $script:TxtContactEmail.Text) {
         $lines.Add("Contact email format looks valid.")
     }
     else {
@@ -842,7 +821,7 @@ function Update-Validation {
         }
 
         $discoveredRegions = Convert-ToStringArray -Value (Get-ObjectMemberValue -Object $row -Name 'DiscoveredRegions')
-        $regionCheck = Test-DiscoveryRegionValue -Region $region -DiscoveredRegions $discoveredRegions -DefaultRegion 'eastus'
+        $regionCheck = Test-DiscoveryRegionValue -Region $region -DiscoveredRegions $discoveredRegions -DefaultRegion 'eastus' -KnownRegions $script:KnownAzureRegions
         if ([string]::IsNullOrWhiteSpace($region) -and -not [string]::IsNullOrWhiteSpace($regionCheck.Region)) {
             $row.Region = $regionCheck.Region
             $region = $regionCheck.Region
@@ -1165,6 +1144,7 @@ function Start-Run {
         ServiceId = [string]$script:Template.serviceId
         SupportPlanId = [string]$script:Template.supportPlanId
         AdvancedDiagnosticConsent = [string]$script:Template.advancedDiagnosticConsent
+        Require24X7Response = [bool](if ($script:Template.PSObject.Properties['require24X7Response']) { $script:Template.require24X7Response } else { $false })
         QuotaChangeRequestVersion = [string]$script:Template.quotaChangeRequestVersion
         QuotaChangeRequestSubType = [string]$script:Template.quotaChangeRequestSubType
         QuotaRequestType = [string]$script:Template.quotaRequestType
@@ -1261,7 +1241,7 @@ function Start-Run {
             -Title $Settings.Title `
             -DescriptionTemplate $Settings.DescriptionTemplate `
             -AdvancedDiagnosticConsent $Settings.AdvancedDiagnosticConsent `
-            -Require24X7Response $true `
+            -Require24X7Response ([bool]$Settings.Require24X7Response) `
             -SupportPlanId $Settings.SupportPlanId `
             -QuotaChangeRequestVersion $Settings.QuotaChangeRequestVersion `
             -QuotaChangeRequestSubType $Settings.QuotaChangeRequestSubType `
@@ -1295,8 +1275,7 @@ function Cancel-Run {
     }
 
     if ($script:RunJob -and $script:RunJob.State -eq 'Running') {
-        Stop-Job -Job $script:RunJob -ErrorAction SilentlyContinue
-        Add-Log "Requested cancellation."
+        Add-Log "Requested cancellation signal; waiting for run loop to stop safely."
     }
 }
 
@@ -1412,7 +1391,7 @@ $script:RequestGrid.Add_CellEditEnding({
     if ($editElement -is [System.Windows.Controls.TextBox]) {
         $newRegion = $editElement.Text.Trim()
         $discoveredRegions = Convert-ToStringArray -Value (Get-ObjectMemberValue -Object $row -Name 'DiscoveredRegions')
-        $regionCheck = Test-DiscoveryRegionValue -Region $newRegion -DiscoveredRegions $discoveredRegions -DefaultRegion 'eastus'
+        $regionCheck = Test-DiscoveryRegionValue -Region $newRegion -DiscoveredRegions $discoveredRegions -DefaultRegion 'eastus' -KnownRegions $script:KnownAzureRegions
         if (-not [string]::IsNullOrWhiteSpace($regionCheck.Region) -and $regionCheck.Region -ne $newRegion) {
             $editElement.Text = $regionCheck.Region
         }
